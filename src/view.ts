@@ -17,6 +17,16 @@ import {
 import { HomePage } from "./home";
 import { LibraryPage } from "./library";
 import { collectSource, extract, collectSelection, markdown } from "./content";
+import type { Article } from "./content";
+import {
+  articleOutline,
+  collectOutlineSource,
+  scrollToPageHeading,
+  observeOutlineChanges,
+  sameOutline,
+  type PageHeading,
+  type SourceHeading,
+} from "./outline";
 import { element, button, iconButton, icon } from "./ui";
 import type BrowserPlugin from "./index";
 export class BrowserView {
@@ -36,6 +46,14 @@ export class BrowserView {
   zoom = 1;
   fitWidth = true;
   reading = false;
+  outline: PageHeading[] = [];
+  outlineLoading = false;
+  outlineCurrent?: string;
+  outlineEpoch = 0;
+  outlineTimer?: ReturnType<typeof setTimeout>;
+  outlineRetries = 0;
+  outlineArticle?: Article;
+  outlineSignal = "siyuan-browser-outline-" + crypto.randomUUID();
   loading = false;
   back: HTMLButtonElement;
   forward: HTMLButtonElement;
@@ -469,6 +487,11 @@ export class BrowserView {
       this.web.setAudioMuted(this.muted);
       if (!data.archive && httpURL(this.url)) {
         void this.web
+          .executeJavaScript(observeOutlineChanges(this.outlineSignal))
+          .catch(() => {});
+      }
+      if (!data.archive && httpURL(this.url)) {
+        void this.web
           .executeJavaScript(
             `(() => {
           let timer;
@@ -483,17 +506,31 @@ export class BrowserView {
       }
     });
     this.web.addEventListener("console-message", (e: any) => {
+      if (e.message === this.outlineSignal) this.scheduleOutline();
       if (e.message === this.viewportSignal && this.fitWidth)
         void this.fitViewport(false);
     });
     this.web.addEventListener("did-finish-load", () => {
       void this.fitViewport();
-      if (this.restoreReading) {
-        this.restoreReading = false;
-        p.guard(() => this.toggleReader());
-      }
+      void this.refreshOutline().then((article) => {
+        if (article && this.restoreReading && !this.disposed) {
+          this.restoreReading = false;
+          p.guard(() => this.toggleReader());
+        }
+      });
+    });
+    this.web.addEventListener("did-start-navigation", (e: any) => {
+      if (e.isMainFrame !== true || e.isInPlace) return;
+      this.restoreReading ||= this.reading;
+      this.reading = false;
+      this.reader.hidden = true;
+      this.readingButton.classList.remove("sb-active");
+      if (this.web) this.web.hidden = !!internalPage(this.url);
+      this.clearOutline();
     });
     this.web.addEventListener("did-start-loading", () => {
+      // Guest loading includes subframes (e.g. login dialogs and ads). Only
+      // main-frame navigation invalidates the current document's outline.
       this.clearError();
       this.setLoading(true);
       this.status.textContent = "";
@@ -503,6 +540,7 @@ export class BrowserView {
       if (!this.status.textContent?.startsWith(p.t("failed")))
         this.status.textContent = "";
       this.updateNavigation();
+      if (!this.reading) this.scheduleOutline();
     });
     for (const name of ["did-navigate", "did-navigate-in-page"])
       this.web.addEventListener(name, (e: any) => {
@@ -514,8 +552,29 @@ export class BrowserView {
         const page = internalPageFromGuest(e.url);
         const url = page ? INTERNAL_URLS[page] : e.url;
         const changed = this.committedURL !== url;
+        const documentChanged =
+          changed &&
+          (name === "did-navigate" ||
+            new URL(this.committedURL || url).pathname !==
+              new URL(url).pathname ||
+            new URL(this.committedURL || url).search !== new URL(url).search);
+        if (documentChanged) {
+          this.clearOutline();
+          if (this.reading) {
+            this.restoreReading = true;
+            this.reading = false;
+            this.reader.hidden = true;
+            this.readingButton.classList.remove("sb-active");
+          }
+        }
         this.committedURL = url;
         this.syncPage(url);
+        if (name === "did-navigate-in-page" && changed) {
+          if (this.restoreReading) {
+            this.restoreReading = false;
+            p.guard(() => this.toggleReader());
+          } else this.scheduleOutline();
+        }
         this.updateNavigation();
         this.persist();
         if (httpURL(this.url) && (name === "did-navigate" || changed)) {
@@ -587,6 +646,7 @@ export class BrowserView {
     else this.showError("host", this.plugin.adapter.reason);
   }
   showError(code: string, detail = "", url = this.url) {
+    this.clearOutline();
     const p = this.plugin;
     const kind =
       code === "host"
@@ -681,6 +741,7 @@ export class BrowserView {
     if (this.web) this.web.hidden = !!page || this.reading;
     if (!this.addressEditing) this.bar.value = this.addressValue();
     if (page) {
+      this.clearOutline();
       this.setLoading(false);
       this.restoreReading = false;
       this.reading = false;
@@ -722,6 +783,7 @@ export class BrowserView {
         return;
       }
       this.addressEditing = false;
+      this.clearOutline();
       this.reading = false;
       this.readingButton.classList.remove("sb-active");
       this.reader.hidden = true;
@@ -768,12 +830,16 @@ export class BrowserView {
       this.reader.hidden = true;
       this.web.hidden = false;
       this.persist();
+      this.scheduleOutline();
       return;
     }
-    const article = await this.article();
+    const article = this.outlineArticle || (await this.refreshOutline());
+    if (!article || this.disposed) return;
+    const epoch = this.outlineEpoch;
     this.reader.replaceChildren();
     const html = window.Lute.New().Md2HTML(markdown(article.html, article.url));
     const { default: purify } = await import("dompurify");
+    if (this.disposed || epoch !== this.outlineEpoch) return;
     const parsed = new DOMParser().parseFromString(
       purify.sanitize(html),
       "text/html",
@@ -811,6 +877,109 @@ export class BrowserView {
     this.web.hidden = true;
     this.reader.hidden = false;
     this.persist();
+  }
+  clearOutline() {
+    this.outlineEpoch++;
+    clearTimeout(this.outlineTimer);
+    this.outline = [];
+    this.outlineArticle = undefined;
+    this.outlineCurrent = undefined;
+    this.outlineLoading = false;
+    this.outlineRetries = 0;
+    this.plugin.outline?.schedule();
+  }
+  scheduleOutline(retry = false) {
+    if (this.reading) return;
+    if (!retry) this.outlineRetries = 0;
+    clearTimeout(this.outlineTimer);
+    this.outlineTimer = setTimeout(
+      () => {
+        if (!this.reading) void this.refreshOutline();
+      },
+      retry ? 750 : 250,
+    );
+  }
+  async refreshOutline(): Promise<Article | undefined> {
+    if (
+      this.disposed ||
+      !this.web ||
+      internalPage(this.url) ||
+      this.data.archive ||
+      !httpURL(this.url)
+    )
+      return;
+    clearTimeout(this.outlineTimer);
+    const epoch = ++this.outlineEpoch;
+    this.outlineLoading = !this.outline.length;
+    this.plugin.outline?.schedule();
+    try {
+      const source = await this.web.executeJavaScript(collectOutlineSource);
+      if (
+        epoch !== this.outlineEpoch ||
+        this.disposed ||
+        source.url !== this.url
+      )
+        return;
+      if (source.transient && this.outlineArticle) return this.outlineArticle;
+      const article = extract(source.html, source.url, source.title);
+      const next = articleOutline(article, source.headings);
+      const previousStillPresent = this.outline.some(
+        (entry) =>
+          entry.readerIndex >= 0 &&
+          source.headings.some(
+            (heading: SourceHeading) =>
+              heading.key === entry.target?.key ||
+              (heading.id &&
+                heading.id === entry.target?.id &&
+                heading.text === entry.target?.text),
+          ),
+      );
+      if (
+        this.outlineArticle &&
+        (article.fallback || (next.length <= 1 && previousStillPresent))
+      ) {
+        this.retryOutline();
+        return this.outlineArticle;
+      }
+      this.outlineArticle = article;
+      this.outlineRetries = 0;
+      if (!sameOutline(this.outline, next)) this.outline = next;
+      if (!this.outline.some((entry) => entry.key === this.outlineCurrent))
+        this.outlineCurrent = undefined;
+      return article;
+    } catch {
+      if (epoch === this.outlineEpoch) {
+        this.retryOutline();
+        return this.outlineArticle;
+      }
+    } finally {
+      if (epoch === this.outlineEpoch) {
+        this.outlineLoading = false;
+        this.plugin.outline?.schedule();
+      }
+    }
+  }
+  retryOutline() {
+    if (this.outlineRetries++ < 2) this.scheduleOutline(true);
+  }
+  async jumpToHeading(entry: PageHeading) {
+    if (this.disposed || !this.outline.includes(entry)) return;
+    if (this.reading) {
+      const headings =
+        this.reader.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6");
+      const target = headings[entry.readerIndex + 1];
+      target?.scrollIntoView({ block: "start" });
+    } else {
+      const found = await this.web.executeJavaScript(
+        scrollToPageHeading(entry),
+      );
+      if (!found) {
+        await this.refreshOutline();
+        return;
+      }
+    }
+    this.outlineCurrent = entry.key;
+    this.plugin.outline?.schedule();
   }
   showFind() {
     const page = internalPage(this.url);
@@ -1174,6 +1343,7 @@ export class BrowserView {
     });
   }
   destroy() {
+    this.clearOutline();
     if (this.disposed) return;
     this.disposed = true;
     this.viewportEpoch++;

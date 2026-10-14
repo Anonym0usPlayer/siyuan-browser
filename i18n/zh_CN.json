@@ -180,5 +180,7 @@
   "sidebarEmptyHint_bookmarks": "点击网页工具栏的星标，即可将网页收藏到这里。",
   "sidebarEmptyHint_history": "访问过的网页会显示在这里。",
   "sidebarTitle": "浏览器",
-  "collapseSearch": "收起搜索并清除筛选"
+  "collapseSearch": "收起搜索并清除筛选",
+  "outlineLoading": "正在生成网页大纲…",
+  "outlineEmpty": "未找到相关内容"
 }

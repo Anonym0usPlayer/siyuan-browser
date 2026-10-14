@@ -180,5 +180,7 @@
   "sidebarEmptyHint_bookmarks": "Use the star in the page toolbar to add a bookmark.",
   "sidebarEmptyHint_history": "Pages you visit will appear here.",
   "sidebarTitle": "Browser",
-  "collapseSearch": "Collapse search and clear filter"
+  "collapseSearch": "Collapse search and clear filter",
+  "outlineLoading": "Generating page outline…",
+  "outlineEmpty": "No headings found"
 }

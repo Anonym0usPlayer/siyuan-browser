@@ -18,6 +18,7 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 - **Address and search**: enter a URL, domain or search term; search bookmarks, history and provider suggestions. DuckDuckGo is the default search engine.
 - **Home and library**: bookmarks, most visited pages, recently closed tabs and history, with configurable section visibility and order. Library pages support search, sorting, deletion and pagination.
 - **Reader**: extract the article and adjust theme, font, page zoom, fit-to-width and find-in-page.
+- **Page outline**: headings retained by reader extraction appear in SiYuan's outline dock. Click to jump in either the original webpage or reader view; switching back to a note restores its outline.
 - **Web clipping**: choose a notebook, parent document or template path; create an editable note, transfer available downloadable resources and save an MHTML snapshot separately.
 - **Databases and tags**: optionally select a database, database item template and tags; use Sprig date templates for save paths.
 - **Enhanced copy**: paste web or reader selections into SiYuan blocks, preserving supported headings, lists, links, code and formulas.

@@ -9,6 +9,7 @@ import {
   showMessage,
   getFrontend,
   saveLayout,
+  getAllModels,
 } from "siyuan";
 import {
   Config,
@@ -31,6 +32,7 @@ import { homeLayoutControls } from "./home";
 import { FaviconCache, FAVICON_BYTES, storedFavicon } from "./favicon";
 import { DesktopBrowserAdapter } from "./adapter";
 import { BrowserView } from "./view";
+import { BrowserOutline } from "./outline";
 import {
   element,
   button,
@@ -52,6 +54,7 @@ export default class BrowserPlugin extends Plugin {
   views = new Set<BrowserView>();
   viewsByGuest = new Map<number, BrowserView>();
   active?: BrowserView;
+  outline?: BrowserOutline;
   dockRefresh = new WeakMap<HTMLElement, () => void>();
   libraryRoots = new Set<HTMLElement>();
   jobs: SaveJob[] = [];
@@ -79,6 +82,7 @@ export default class BrowserPlugin extends Plugin {
       update() {
         for (const v of p.views) if (v.custom === this) p.active = v;
         p.refreshDocks();
+        p.outline?.schedule();
       },
       destroy() {
         for (const v of p.views) if (v.custom === this) v.destroy();
@@ -132,6 +136,16 @@ export default class BrowserPlugin extends Plugin {
       callback: () => this.open(this.config.home),
     });
     this.ready = this.initialize();
+    this.outline = new BrowserOutline(
+      () => this.views,
+      () =>
+        getAllModels()
+          .outline.filter((model: any) => model.type === "pin")
+          .map((model: any) => model.element.parentElement as HTMLElement),
+      this.t("outlineEmpty"),
+      this.t("outlineLoading"),
+      (fn) => this.guard(fn),
+    );
     this.eventBus.on("open-link", this.openLink);
     this.eventBus.on("open-menu-link", this.linkMenu);
     return this.ready;
@@ -896,6 +910,7 @@ export default class BrowserPlugin extends Plugin {
   }
   async onunload() {
     this.closing = true;
+    this.outline?.destroy();
     this.favicons.dispose();
     clearTimeout(this.timer);
     for (const j of this.jobs) j.cancelled = true;

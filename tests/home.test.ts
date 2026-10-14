@@ -118,6 +118,8 @@ test("homepage navigation, close/reopen and section changes integrate with brows
   Object.assign(globalThis, {
     document: dom.window.document,
     window: dom.window,
+    DOMParser: dom.window.DOMParser,
+    MutationObserver: dom.window.MutationObserver,
     ResizeObserver: class {
       observe() {}
       disconnect() {}
@@ -150,6 +152,7 @@ test("homepage navigation, close/reopen and section changes integrate with brows
           export class Setting {};
           export function showMessage() {};
           export function saveLayout(fn) { fn(); };
+          export function getAllModels() { return {outline: []}; };
           export function openTab(options) { return Promise.resolve({ options }); };
           export function openWindow() {};
           export function getFrontend() { return 'desktop'; };
@@ -532,6 +535,127 @@ test("homepage navigation, close/reopen and section changes integrate with brows
     loader.web.emitEvent("did-start-loading");
     assert.equal(head.querySelector(".sb-tab-spinner"), null);
     p.guard = guard;
+    const outlining = mount("https://outline.example/");
+    let finishSource!: (value: unknown) => void;
+    outlining.web.executeJavaScript = () =>
+      new Promise((resolve) => {
+        finishSource = resolve;
+      });
+    const pendingOutline = outlining.refreshOutline();
+    assert.equal(outlining.outlineLoading, true);
+    outlining.navigate(HOME_URL);
+    finishSource({
+      url: "https://outline.example/",
+      title: "Old page",
+      html: "<h2>Old heading</h2>",
+      headings: [],
+    });
+    assert.equal(await pendingOutline, undefined);
+    assert.deepEqual(outlining.outline, []);
+    assert.equal(outlining.outlineLoading, false);
+    outlining.destroy();
+    const modalView = mount("https://modal.example/article");
+    const prose =
+      "This article explains how dynamic content should behave. ".repeat(80);
+    const baseline = {
+      url: modalView.url,
+      title: "Dynamic article",
+      transient: false,
+      html: `<title>Dynamic article</title><article><h1>Dynamic article</h1><p>${prose}</p><h2 id="first" data-sb-outline-target="first">First section</h2><p>${prose}</p><h2 id="second" data-sb-outline-target="second">Second section</h2><p>${prose}</p></article>`,
+      headings: [
+        { key: "title", id: "", text: "Dynamic article", level: 1 },
+        { key: "first", id: "first", text: "First section", level: 2 },
+        { key: "second", id: "second", text: "Second section", level: 2 },
+      ],
+    };
+    modalView.web.executeJavaScript = async () => baseline;
+    const stableArticle = await modalView.refreshOutline();
+    const stableOutline = modalView.outline;
+    assert.equal(stableOutline.length, 3);
+    modalView.outlineCurrent = stableOutline[1].key;
+    // Electron emits guest loading for a login iframe, without a main document load.
+    modalView.web.emitEvent("did-start-navigation", {
+      isMainFrame: false,
+      isInPlace: false,
+    });
+    modalView.web.emitEvent("did-start-loading");
+    assert.equal(modalView.outline, stableOutline);
+    modalView.web.executeJavaScript = async () => ({
+      ...baseline,
+      transient: true,
+      html: "<h2>Sign in</h2>",
+      headings: [],
+    });
+    assert.equal(await modalView.refreshOutline(), stableArticle);
+    assert.equal(modalView.outline, stableOutline);
+    assert.equal(modalView.outlineCurrent, stableOutline[1].key);
+    assert.equal(modalView.outlineLoading, false);
+    modalView.web.executeJavaScript = async () => {
+      throw Error("Guest temporarily busy");
+    };
+    assert.equal(await modalView.refreshOutline(), stableArticle);
+    assert.equal(modalView.outline, stableOutline);
+    assert.equal(modalView.outlineRetries, 1);
+    modalView.web.executeJavaScript = async () => baseline;
+    modalView.web.emitEvent("did-stop-loading");
+    await modalView.refreshOutline();
+    assert.equal(modalView.outline, stableOutline);
+    assert.equal(modalView.outlineRetries, 0);
+    const added = {
+      ...baseline,
+      html: baseline.html.replace(
+        "</article>",
+        `<h3 id="new" data-sb-outline-target="new">New subsection</h3><p>${prose}</p></article>`,
+      ),
+      headings: [
+        ...baseline.headings,
+        { key: "new", id: "new", text: "New subsection", level: 3 },
+      ],
+    };
+    modalView.web.executeJavaScript = async () => added;
+    await modalView.refreshOutline();
+    assert.equal(modalView.outline.length, 4);
+    assert.equal(modalView.outline.at(-1).text, "New subsection");
+    assert.equal(modalView.outlineCurrent, stableOutline[1].key);
+    modalView.web.executeJavaScript = async () => ({
+      ...baseline,
+      html: `<title>Dynamic article</title><article><p>${prose}</p></article>`,
+      headings: [],
+    });
+    await modalView.refreshOutline();
+    assert.equal(modalView.outline.length, 1); // A real content change may remove all headings.
+    assert.equal(modalView.outlineCurrent, undefined);
+    modalView.web.executeJavaScript = async () => baseline;
+    await modalView.refreshOutline();
+    modalView.web.emitEvent("did-navigate-in-page", {
+      isMainFrame: true,
+      url: baseline.url + "#first",
+    });
+    assert.equal(modalView.outline.length, 3); // An anchor does not invalidate the article.
+    modalView.web.emitEvent("did-start-navigation", {
+      isMainFrame: true,
+      isInPlace: false,
+    });
+    assert.deepEqual(modalView.outline, []);
+    assert.equal(modalView.outlineArticle, undefined);
+    modalView.transferring = true;
+    modalView.destroy();
+    // The host has not yet loaded its global language object at plugin onload.
+    const startup = new BrowserPlugin();
+    startup.t = (key: string) => key;
+    for (const name of [
+      "addIcons",
+      "addTab",
+      "addDock",
+      "addCommand",
+      "addTopBar",
+    ])
+      startup[name] = () => {};
+    startup.initialize = async () => {};
+    startup.eventBus = { on() {} };
+    await startup.onload();
+    assert.ok(startup.outline);
+    startup.outline.destroy();
     const moving = mount("https://moving.example/");
     moving.transferring = true;
     moving.destroy();

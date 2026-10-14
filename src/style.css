@@ -993,3 +993,20 @@
   background: var(--b3-list-hover);
   font-weight: 500;
 }
+.sy__outline.sb-outline-host > :not(.sb-outline):not(.block__icons) {
+  display: none !important;
+}
+.sy__outline.sb-outline-host > .block__icons > :not(.block__logo):not([data-type="min"]) {
+  display: none !important;
+}
+.sb-outline {
+  overflow: auto;
+  padding: 3px 0 8px;
+}
+.sy__outline.sb-outline-host .sb-outline [role="treeitem"] {
+  display: flex !important;
+  cursor: pointer;
+}
+.sb-outline [role="group"][hidden] {
+  display: none;
+}
