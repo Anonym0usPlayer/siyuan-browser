@@ -1,0 +1,39 @@
+{
+  "time": "2026-10-09T09:19:59.509Z",
+  "results": [
+    {
+      "name": "normal and reading mode find",
+      "pass": true,
+      "details": {
+        "web": "",
+        "reader": "1 / 13"
+      }
+    },
+    {
+      "name": "zoom and mute use actual webContents",
+      "pass": true,
+      "details": {
+        "zoom": 1.5,
+        "muted": true,
+        "reset": true
+      }
+    },
+    {
+      "name": "blocked kernel network",
+      "pass": true,
+      "details": true
+    },
+    {
+      "name": "deterministic session adblock",
+      "pass": true,
+      "details": {
+        "blocked": true
+      }
+    },
+    {
+      "name": "native independent window",
+      "pass": false,
+      "error": "TypeError: Failed to resolve module specifier 'siyuan'"
+    }
+  ]
+}

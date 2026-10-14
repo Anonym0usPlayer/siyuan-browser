@@ -1,0 +1,657 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { build } from "esbuild";
+import { JSDOM } from "jsdom";
+import {
+  HOME_URL,
+  HOME_GUEST_URL,
+  HOME_SECTIONS,
+  INTERNAL_URLS,
+  internalGuestURL,
+  internalPageFromGuest,
+  address,
+  readConfig,
+  recordVisit,
+  updateHistoryTitle,
+  mostVisited,
+  addClosed,
+} from "../src/core";
+
+test("internal addresses normalize only known pages and map to isolated blank guests", () => {
+  assert.equal(address("siyuan-browser://"), HOME_URL);
+  for (const [page, url] of Object.entries(INTERNAL_URLS)) {
+    assert.equal(address(url + "/"), url);
+    assert.equal(internalPageFromGuest(internalGuestURL(url)!), page);
+    assert.equal(recordVisit([], { url, title: page, time: 1 }).length, 0);
+    assert.equal(
+      addClosed([], { id: page, url, title: page, time: 1 }).length,
+      0,
+    );
+  }
+  assert.throws(() => address("siyuan-browser://unknown"));
+  assert.throws(() => address("siyuan-browser://history?script=1"));
+  assert.equal(
+    internalPageFromGuest("about:blank#siyuan-browser-unknown"),
+    undefined,
+  );
+});
+
+test("home configuration migrates the old blank default, preserves custom homes and validates layout/data", () => {
+  assert.equal(address(HOME_URL), HOME_URL);
+  assert.throws(() => address("siyuan-browser://other"));
+  assert.equal(readConfig({ version: 1, home: "about:blank" }).home, HOME_URL);
+  assert.equal(
+    readConfig({ version: 2, home: "about:blank" }).home,
+    "about:blank",
+  );
+  assert.equal(
+    readConfig({ home: "https://example.com/" }).home,
+    "https://example.com/",
+  );
+  const config = readConfig({
+    home: "javascript:alert(1)",
+    homeLayout: {
+      order: ["history", "history", "unknown"],
+      hidden: ["bookmarks", "unknown"],
+    },
+    history: [
+      { url: "https://example.com", title: "Old", time: NaN, visits: -2 },
+    ],
+    recentlyClosed: [
+      { url: "file:///etc/passwd", title: "Bad", id: "bad", time: 0 },
+    ],
+  });
+  assert.equal(config.home, HOME_URL);
+  assert.deepEqual(config.homeLayout.order, [
+    "history",
+    "bookmarks",
+    "mostVisited",
+    "recentlyClosed",
+  ]);
+  assert.deepEqual(config.homeLayout.hidden, ["bookmarks"]);
+  assert.equal(config.history[0].time, 0);
+  assert.equal(config.history[0].visits, 1);
+  assert.equal(config.recentlyClosed.length, 0);
+  const fresh = readConfig(undefined);
+  config.homeLayout.hidden.push("history");
+  assert.deepEqual(fresh.homeLayout.hidden, []);
+});
+
+test("frequency counts navigation only; title updates preserve counts/time and closed tabs remain bounded", () => {
+  let history = readConfig(undefined).history;
+  history = recordVisit(history, {
+    url: "https://a.example",
+    title: "A",
+    time: 1,
+  });
+  history = recordVisit(history, {
+    url: "https://b.example",
+    title: "B",
+    time: 2,
+  });
+  history = recordVisit(history, {
+    url: "https://a.example",
+    title: "A",
+    time: 3,
+  });
+  history = updateHistoryTitle(history, "https://a.example", "Updated");
+  history = updateHistoryTitle(history, "https://a.example", "Updated again");
+  history = recordVisit(history, { url: HOME_URL, title: "Home", time: 4 });
+  assert.equal(history.length, 2);
+  assert.equal(history[0].visits, 2);
+  assert.equal(history[0].time, 3);
+  assert.equal(mostVisited(history)[0].url, "https://a.example");
+  const closed = Array.from({ length: 55 }, (_, i) => ({
+    id: String(i),
+    url: "https://a.example",
+    title: "A",
+    time: i,
+  }));
+  assert.equal(addClosed(closed, closed[0]).length, 50);
+  assert.equal(addClosed([], { ...closed[0], url: HOME_URL }).length, 0);
+});
+
+test("homepage navigation, close/reopen and section changes integrate with browser lifecycle", async () => {
+  const dom = new JSDOM("<!doctype html><body></body>", {
+    url: "https://siyuan.local",
+  });
+  Object.assign(globalThis, {
+    document: dom.window.document,
+    window: dom.window,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+  });
+  const bundle = await build({
+    stdin: {
+      contents:
+        'export { default as BrowserPlugin } from "./src/index"; export { BrowserView } from "./src/view"; export { homeLayoutControls } from "./src/home";',
+      resolveDir: process.cwd(),
+    },
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "cjs",
+    define: { DESKTOP_FILENAME: '"test.cjs"' },
+    plugins: [
+      {
+        name: "siyuan-stub",
+        setup(builder) {
+          builder.onResolve({ filter: /^siyuan$/ }, () => ({
+            path: "siyuan",
+            namespace: "stub",
+          }));
+          builder.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
+            contents: `
+          export class Plugin { saveData() { return Promise.resolve(); } };
+          export class Menu { addItem() {} addSeparator() {} open() {} };
+          export class Dialog {};
+          export class Setting {};
+          export function showMessage() {};
+          export function saveLayout(fn) { fn(); };
+          export function openTab(options) { return Promise.resolve({ options }); };
+          export function openWindow() {};
+          export function getFrontend() { return 'desktop'; };
+        `,
+          }));
+          builder.onLoad({ filter: /\.css$/ }, () => ({
+            contents: "",
+            loader: "js",
+          }));
+        },
+      },
+    ],
+  });
+  const module = { exports: {} as any };
+  new Function("module", "exports", "require", bundle.outputFiles[0].text)(
+    module,
+    module.exports,
+    () => ({}),
+  );
+  const { BrowserPlugin, BrowserView, homeLayoutControls } = module.exports;
+  const p = new BrowserPlugin();
+  p.config = readConfig(undefined);
+  p.t = (key: string) => key;
+  let guestID = 0;
+  const createGuest = () => {
+    const web = document.createElement("div") as any;
+    const id = ++guestID;
+    const journal: string[] = [];
+    let cursor = -1;
+    let url = "about:blank";
+    const emit = (name: string, data: Record<string, unknown> = {}) =>
+      web.dispatchEvent(Object.assign(new dom.window.Event(name), data));
+    const navigate = (target: string) => {
+      const sameDocument = url.split("#")[0] === target.split("#")[0];
+      url = target;
+      emit("dom-ready");
+      emit(sameDocument ? "did-navigate-in-page" : "did-navigate", { url });
+      if (!sameDocument) emit("did-stop-loading");
+    };
+    Object.defineProperty(web, "src", {
+      set(target: string) {
+        journal.splice(cursor + 1);
+        journal.push(target);
+        cursor++;
+        navigate(target);
+      },
+    });
+    Object.assign(web, {
+      getWebContentsId: () => id,
+      getURL: () => url,
+      setZoomFactor(value: number) {
+        web.zoomFactor = value;
+      },
+      getZoomFactor() {
+        return web.zoomFactor;
+      },
+      setAudioMuted() {},
+      stopFindInPage() {
+        if (cursor < 0) throw Error("Guest is not ready");
+      },
+      executeJavaScript: () => Promise.resolve(),
+      canGoBack: () => cursor > 0,
+      canGoForward: () => cursor < journal.length - 1,
+      goBack: () => {
+        if (cursor > 0) navigate(journal[--cursor]);
+      },
+      goForward: () => {
+        if (cursor < journal.length - 1) navigate(journal[++cursor]);
+      },
+      emitTitle: (title: string) => emit("page-title-updated", { title }),
+      emitEvent: emit,
+      stop() {
+        web.stopped = true;
+      },
+    });
+    return web;
+  };
+  let hostZoom = 1.25;
+  p.adapter = {
+    create: createGuest,
+    bridge: {},
+    partition: "test",
+    hostZoom: () => hostZoom,
+  };
+  const mount = (url = HOME_URL) => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const v = new BrowserView(
+      p,
+      {
+        element: root,
+        data: {},
+        tab: { headElement: document.createElement("div"), updateTitle() {} },
+      },
+      { url },
+    );
+    p.views.add(v);
+    return v;
+  };
+  const v = mount();
+  try {
+    const dock = document.createElement("div");
+    p.libraryRoots.add(dock);
+    p.renderLibrary(dock);
+    assert.equal(dock.querySelectorAll(".sb-dock-row").length, 1);
+    let switched = false;
+    v.custom.tab.parent = {
+      switchTab() {
+        switched = true;
+      },
+    };
+    dock.querySelector<HTMLButtonElement>(".sb-dock-row")!.click();
+    assert.equal(switched, true);
+    const search = dock.querySelector<HTMLInputElement>("input")!;
+    search.value = "no-such-tab";
+    search.dispatchEvent(new dom.window.Event("input"));
+    assert.equal(dock.querySelectorAll(".sb-dock-row").length, 0);
+    p.refreshDocks();
+    assert.equal(dock.querySelector("input"), search);
+    assert.equal(search.value, "no-such-tab");
+    search.value = "";
+    search.dispatchEvent(new dom.window.Event("input"));
+    assert.equal(dock.querySelectorAll(".sb-dock-row").length, 1);
+    assert.equal(v.web.getURL(), HOME_GUEST_URL);
+    assert.equal(v.homePage.root.hidden, false);
+    assert.equal(v.bookmarkButton.disabled, true);
+    assert.equal(v.bar.value, "");
+    assert.deepEqual(
+      [...v.homePage.sections.children].map(
+        (node: any) => node.dataset.section,
+      ),
+      HOME_SECTIONS,
+    );
+    v.navigate(INTERNAL_URLS.bookmarks);
+    assert.equal(v.homePage.root.hidden, true);
+    assert.equal(v.libraryPages.bookmarks.root.hidden, false);
+    assert.equal(v.libraryPages.history.root.hidden, true);
+    assert.equal(v.web.hidden, true);
+    assert.equal(v.bar.value, INTERNAL_URLS.bookmarks);
+    assert.equal(v.custom.data.url, INTERNAL_URLS.bookmarks);
+    v.web.emitTitle("Guest blank title");
+    assert.equal(v.title, "bookmarks");
+    v.navigate(INTERNAL_URLS.history);
+    assert.equal(v.libraryPages.bookmarks.root.hidden, true);
+    assert.equal(v.libraryPages.history.root.hidden, false);
+    v.showFind();
+    assert.equal(document.activeElement, v.libraryPages.history.filter);
+    assert.equal(p.config.history.length, 0);
+    v.back.click();
+    assert.equal(v.url, INTERNAL_URLS.bookmarks);
+    v.back.click();
+    assert.equal(v.url, HOME_URL);
+    const restoredInternal = mount(INTERNAL_URLS.history);
+    assert.equal(restoredInternal.libraryPages.history.root.hidden, false);
+    restoredInternal.destroy();
+    assert.equal(p.config.recentlyClosed.length, 0);
+    const opened = await p.showLibrary("bookmarks");
+    assert.equal(opened.options.custom.data.url, INTERNAL_URLS.bookmarks);
+    v.navigate("https://example.com/");
+    v.web.emitTitle("Example");
+    v.web.emitTitle("Example updated");
+    assert.equal(p.config.history[0].visits, 1);
+    assert.equal(p.config.history[0].title, "Example updated");
+    assert.equal(v.homePage.root.hidden, true);
+    assert.equal(v.web.hidden, false);
+    Object.defineProperty(v.web, "clientWidth", { value: 800 });
+    // macOS pointer activation can blur the panel without focusing a button.
+    // The blur microtask runs before mouseup/click, so hiding here swallows it.
+    v.showPageMenu();
+    const zoomIn = v.pageMenu.querySelector(
+      '[title="zoomIn"]',
+    ) as HTMLButtonElement;
+    zoomIn.dispatchEvent(
+      new dom.window.MouseEvent("mousedown", { bubbles: true }),
+    );
+    v.pageMenu.blur();
+    await Promise.resolve();
+    assert.equal(
+      v.pageMenu.hidden,
+      false,
+      "null-relatedTarget blur must not swallow a pointer click",
+    );
+    zoomIn.dispatchEvent(
+      new dom.window.MouseEvent("mouseup", { bubbles: true }),
+    );
+    zoomIn.click();
+    await Promise.resolve();
+    assert.equal(v.zoom, 1.1);
+    assert.equal(v.pageMenu.hidden, false);
+    v.bar.focus();
+    await Promise.resolve();
+    assert.equal(
+      v.pageMenu.hidden,
+      true,
+      "keyboard focus leaving the menu dismisses it",
+    );
+    v.showPageMenu();
+    v.pageMenu.dispatchEvent(
+      new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    assert.equal(v.pageMenu.hidden, true);
+    v.setZoom(1.2);
+    assert.equal(v.web.getZoomFactor(), 1.5);
+    hostZoom = 1.5;
+    window.dispatchEvent(new dom.window.Event("resize"));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.ok(Math.abs(v.web.getZoomFactor() - 1.8) < 1e-10);
+    assert.equal(v.zoom, 1.2);
+    Object.assign(globalThis, { KeyboardEvent: dom.window.KeyboardEvent });
+    v.bar.focus();
+    const forwarded: string[] = [];
+    v.bar.addEventListener("keydown", (e: KeyboardEvent) =>
+      forwarded.push(e.key),
+    );
+    for (const key of ["+", "=", "-", "0"]) {
+      p.event({
+        type: "key",
+        id: v.web.getWebContentsId(),
+        input: { key, meta: true },
+      });
+    }
+    assert.deepEqual(forwarded, ["+", "=", "-", "0"]);
+    assert.equal(v.zoom, 1.2);
+    v.setZoom(1);
+    assert.equal(v.web.getZoomFactor(), hostZoom);
+    v.back.click();
+    assert.equal(v.url, HOME_URL);
+    assert.equal(v.homePage.root.hidden, false);
+    v.forward.click();
+    assert.equal(v.url, "https://example.com/");
+    assert.equal(p.config.history[0].visits, 2);
+    v.web.emitTitle("Reader article");
+    v.navigate("https://example.com/#reader");
+    assert.equal(p.config.history[0].url, "https://example.com/#reader");
+    assert.equal(p.config.history[0].visits, 1);
+    assert.equal(p.config.history[0].title, "Reader article");
+    assert.equal(v.back.disabled, false);
+    v.back.click();
+    assert.equal(v.forward.disabled, false);
+    assert.equal(p.config.history[0].visits, 3);
+    v.navigate(HOME_URL);
+    assert.equal(p.config.history.length, 2);
+    const controls = homeLayoutControls(p);
+    const staleControls = homeLayoutControls(p);
+    const hide = controls.querySelector(
+      '[data-control="bookmarks-toggle"]',
+    ) as HTMLInputElement;
+    hide.checked = false;
+    hide.dispatchEvent(new dom.window.Event("change"));
+    assert.equal(
+      v.homePage.sections.querySelector('[data-section="bookmarks"]'),
+      null,
+    );
+    (
+      controls.querySelector(
+        '[data-control="history-moveUp"]',
+      ) as HTMLButtonElement
+    ).click();
+    assert.deepEqual(p.config.homeLayout.order, [
+      "bookmarks",
+      "mostVisited",
+      "history",
+      "recentlyClosed",
+    ]);
+    const drag = controls.querySelector(
+      '[data-section="history"] .sb-home-drag',
+    )!;
+    drag.dispatchEvent(new dom.window.Event("dragstart"));
+    controls
+      .querySelector('[data-section="bookmarks"]')!
+      .dispatchEvent(new dom.window.Event("drop", { cancelable: true }));
+    assert.equal(p.config.homeLayout.order[0], "history");
+    const hideHistory = staleControls.querySelector(
+      '[data-control="history-toggle"]',
+    ) as HTMLInputElement;
+    hideHistory.checked = false;
+    hideHistory.dispatchEvent(new dom.window.Event("change"));
+    assert.deepEqual(p.config.homeLayout.hidden, ["bookmarks", "history"]);
+    assert.equal(p.config.homeLayout.order[0], "history");
+    const restored = readConfig(JSON.parse(JSON.stringify(p.config)));
+    assert.deepEqual(restored.homeLayout, p.config.homeLayout);
+    p.bookmark("https://safe.example", '<img src=x onerror="alert(1)">');
+    p.config.homeLayout.hidden = [];
+    p.refreshPages();
+    assert.equal(v.homePage.sections.querySelector("img"), null);
+    p.addBookmark("added.example", "Added");
+    assert.throws(() => p.addBookmark("search query", "Bad"));
+    assert.throws(() => p.addBookmark("javascript:alert(1)", "Bad"));
+    const closed = mount("https://closed.example/");
+    closed.web.emitTitle("Closed page");
+    closed.destroy();
+    closed.destroy();
+    assert.equal(p.config.recentlyClosed.length, 1);
+    assert.ok(
+      v.homePage.sections.querySelector('[data-section="recentlyClosed"] a'),
+    );
+    const entry = p.config.recentlyClosed[0];
+    await p.reopen(entry);
+    assert.equal(p.config.recentlyClosed.length, 0);
+    const loader = mount("https://loading.example/");
+    const head = loader.custom.tab.headElement as HTMLElement;
+    loader.web.emitEvent("did-start-loading");
+    assert.equal(loader.loading, true);
+    assert.ok(head.querySelector(".sb-tab-spinner"));
+    assert.equal(loader.status.textContent, "");
+    let completeIcon!: (value: unknown) => void;
+    let iconTask!: Promise<void>;
+    const guard = p.guard.bind(p);
+    p.guard = (fn: () => Promise<any>) => (iconTask = guard(fn));
+    p.adapter.bridge.resource = () =>
+      new Promise((resolve) => {
+        completeIcon = resolve;
+      });
+    loader.web.emitEvent("page-favicon-updated", {
+      favicons: ["https://loading.example/favicon.png"],
+    });
+    completeIcon({ mime: "image/png", base64: "first" });
+    await iconTask;
+    assert.ok(head.querySelector(".sb-tab-spinner"));
+    loader.web.emitEvent("did-stop-loading");
+    assert.equal(head.querySelector(".sb-tab-spinner"), null);
+    assert.equal(head.querySelector("img")?.src, "data:image/png;base64,first");
+    assert.equal(
+      p.config.history.find((entry: any) => entry.url === loader.url).favicon,
+      "https://loading.example/favicon.png",
+    );
+    const visits = p.config.history.find(
+      (entry: any) => entry.url === loader.url,
+    ).visits;
+    p.bookmark(loader.url, "Loader");
+    assert.equal(
+      p.config.bookmarks[0].favicon,
+      "https://loading.example/favicon.png",
+    );
+    p.closed(loader.url, "Loader");
+    assert.equal(
+      p.config.recentlyClosed[0].favicon,
+      "https://loading.example/favicon.png",
+    );
+    p.removeClosed(p.config.recentlyClosed[0].id);
+    assert.equal(
+      p.config.history.find((entry: any) => entry.url === loader.url).visits,
+      visits,
+    );
+    loader.web.emitEvent("did-start-loading");
+    loader.web.emitEvent("did-fail-load", {
+      isMainFrame: false,
+      errorCode: -105,
+      errorDescription: "Subframe error",
+    });
+    assert.equal(loader.loading, true);
+    loader.web.emitEvent("did-fail-load", {
+      isMainFrame: true,
+      errorCode: -105,
+      errorDescription: "DNS error",
+    });
+    assert.equal(loader.loading, false);
+    assert.equal(head.querySelector(".sb-tab-spinner"), null);
+    assert.equal(loader.errorPage.hidden, false);
+    assert.equal(loader.web.hidden, true);
+    assert.match(loader.errorPage.textContent, /error_dns/);
+    assert.match(loader.errorPage.textContent, /DNS error/);
+    loader.web.emitEvent("did-start-loading");
+    assert.equal(loader.status.textContent, "");
+    assert.equal(loader.errorPage.hidden, true);
+    loader.reload.click();
+    assert.equal(loader.web.stopped, true);
+    assert.equal(loader.loading, false);
+    assert.equal(head.querySelector(".sb-tab-spinner"), null);
+    loader.web.emitEvent("did-start-loading");
+    loader.web.emitEvent("page-favicon-updated", {
+      favicons: ["https://loading.example/late.png"],
+    });
+    loader.navigate(HOME_URL);
+    completeIcon({ mime: "image/png", base64: "stale" });
+    await iconTask;
+    assert.equal(head.querySelector("img"), null);
+    assert.equal(head.querySelector(".sb-tab-spinner"), null);
+    loader.destroy();
+    loader.web.emitEvent("did-start-loading");
+    assert.equal(head.querySelector(".sb-tab-spinner"), null);
+    p.guard = guard;
+    const moving = mount("https://moving.example/");
+    moving.transferring = true;
+    moving.destroy();
+    assert.equal(p.config.recentlyClosed.length, 0);
+    const unloading = mount("https://unload.example/");
+    p.closing = true;
+    unloading.destroy();
+    assert.equal(p.config.recentlyClosed.length, 0);
+    v.destroy();
+    assert.equal(p.config.recentlyClosed.length, 0);
+  } finally {
+    p.closing = true;
+    clearTimeout(p.timer);
+    for (const view of [...p.views] as any[]) view.destroy();
+    dom.window.close();
+  }
+});
+
+test("library pages support local filtering, sorting, pagination and shared list updates", async () => {
+  const dom = new JSDOM("<!doctype html><body></body>");
+  Object.assign(globalThis, { document: dom.window.document });
+  const bundle = await build({
+    entryPoints: ["src/library.ts"],
+    bundle: true,
+    write: false,
+    platform: "node",
+    format: "cjs",
+    plugins: [
+      {
+        name: "siyuan-stub",
+        setup(builder) {
+          builder.onResolve({ filter: /^siyuan$/ }, () => ({
+            path: "siyuan",
+            namespace: "stub",
+          }));
+          builder.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
+            contents: "export class Dialog {}",
+          }));
+        },
+      },
+    ],
+  });
+  const module = { exports: {} as any };
+  new Function("module", "exports", bundle.outputFiles[0].text)(
+    module,
+    module.exports,
+  );
+  const { LibraryPage } = module.exports;
+  const config = readConfig({
+    bookmarks: Array.from({ length: 65 }, (_, i) => ({
+      title:
+        i === 0
+          ? '<img src=x onerror="alert(1)">'
+          : `Page ${String(i).padStart(2, "0")}`,
+      url: `https://example.com/${i}`,
+      time: i,
+    })),
+    history: [
+      {
+        title: "Yesterday",
+        url: "https://old.example",
+        time: Date.now() - 86400000,
+      },
+      { title: "Today", url: "https://today.example", time: Date.now() },
+    ],
+  });
+  let page: any;
+  const navigated: string[] = [];
+  let cleared: string | undefined;
+  const p = {
+    config,
+    t: (key: string) => key,
+    open() {},
+    homeEntryMenu() {},
+    removeEntry(kind: "bookmarks" | "history", url: string) {
+      config[kind] = config[kind].filter((e) => e.url !== url);
+      page.refresh();
+    },
+    clearEntries(kind: string) {
+      cleared = kind;
+    },
+  };
+  try {
+    page = new LibraryPage(p, "bookmarks", (url: string) =>
+      navigated.push(url),
+    );
+    assert.equal(page.results.querySelectorAll("a").length, 50);
+    page.results.querySelector(":scope > button").click();
+    assert.equal(page.results.querySelectorAll("a").length, 65);
+    assert.equal(page.results.querySelector("img"), null);
+    page.filter.value = "Page 01";
+    page.filter.dispatchEvent(new dom.window.Event("input"));
+    assert.equal(page.results.querySelectorAll("a").length, 1);
+    assert.equal(page.count.textContent, "1 / 65");
+    page.results.querySelector("a").click();
+    assert.equal(navigated.at(-1), "https://example.com/1");
+    page.results.querySelector(".sb-home-row > button").click();
+    assert.equal(config.bookmarks.length, 64);
+    assert.equal(page.results.querySelectorAll("a").length, 0);
+    page.filter.value = "";
+    page.filter.dispatchEvent(new dom.window.Event("input"));
+    page.sort.value = "oldest";
+    page.sort.dispatchEvent(new dom.window.Event("change"));
+    assert.equal(page.results.querySelector("a").href, "https://example.com/0");
+    page.root.querySelector('[aria-current="page"]').click();
+    assert.equal(navigated.at(-1), INTERNAL_URLS.bookmarks);
+    page.clear.click();
+    assert.equal(cleared, "bookmarks");
+    page = new LibraryPage(p, "history", (url: string) => navigated.push(url));
+    assert.equal(
+      page.results.querySelector("a").href,
+      "https://today.example/",
+    );
+    assert.equal(page.results.querySelectorAll("h2").length, 2);
+    assert.equal(config.history[0].title, "Yesterday");
+    config.history = [];
+    page.refresh();
+    assert.equal(page.clear.disabled, true);
+    assert.equal(page.results.querySelectorAll("a").length, 0);
+  } finally {
+    dom.window.close();
+  }
+});

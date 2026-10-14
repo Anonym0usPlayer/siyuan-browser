@@ -1,0 +1,42 @@
+{
+  "time": "2026-10-09T09:31:52.237Z",
+  "results": [
+    {
+      "name": "normal and reading mode find",
+      "pass": true,
+      "details": {
+        "web": "1 / 12",
+        "reader": "1 / 12"
+      }
+    },
+    {
+      "name": "zoom and mute use actual webContents",
+      "pass": true,
+      "details": {
+        "zoom": 1.5,
+        "muted": true,
+        "reset": true
+      }
+    },
+    {
+      "name": "blocked kernel network",
+      "pass": true,
+      "details": true
+    },
+    {
+      "name": "deterministic session adblock",
+      "pass": true,
+      "details": {
+        "blocked": true
+      }
+    },
+    {
+      "name": "native independent window",
+      "pass": true,
+      "details": {
+        "windowId": 9,
+        "url": "https://127.0.0.1:16838/stage/build/app/window.html?v=3.8.6&json=%5B%7B%22title%22%3A%22%E6%89%93%E5%BC%80%E6%B5%8F%E8%A7%88%E5%99%A8%22%2C%22icon%22%3A%22iconBrowser%22%2C%22pin%22%3Afalse%2C%22active%22%3Atrue%2C%22instance%22%3A%22Tab%22%2C%22activeTime%22%3A%221791538312079%22%2C%22children%22%3A%7B%22instance%22%3A%22Custom%22%2C%22customModelType%22%3A%22siyuan-browserpage%22%2C%22customModelData%22%3A%7B%22url%22%3A%22http%3A%2F%2F127.0.0.1%3A17839%2Fnext%22%2C%22instanceId%22%3A%221aebb079-c37f-4913-9250-7f8e329a51ec%22%2C%22zoom%22%3A1%2C%22muted%22%3Afalse%2C%22reading%22%3Afalse%7D%7D%7D%5D"
+      }
+    }
+  ]
+}

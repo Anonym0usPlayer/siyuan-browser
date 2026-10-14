@@ -1,0 +1,27 @@
+{
+  "name": "siyuan-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workspace-isolated desktop web viewer for SiYuan",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "verify:package": "node scripts/verify-package.mjs"
+  },
+  "dependencies": {
+    "@ghostery/adblocker": "^2.11.0",
+    "defuddle": "0.19.4",
+    "dompurify": "^3.2.7"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.9.9",
+    "siyuan": "1.2.8",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

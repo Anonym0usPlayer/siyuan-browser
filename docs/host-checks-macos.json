@@ -1,0 +1,61 @@
+{
+  "time": "2026-10-09T09:16:58.492Z",
+  "platform": "MacIntel",
+  "host": "/private/tmp/siyuan-browser-test-20261009",
+  "results": [
+    {
+      "name": "guest isolation",
+      "pass": true,
+      "details": "{\"require\":\"undefined\",\"process\":\"undefined\",\"Buffer\":\"undefined\"}"
+    },
+    {
+      "name": "archive isolation and offline reload",
+      "pass": true,
+      "details": {
+        "javascript": false,
+        "offline": true,
+        "title": "中文离线归档测试"
+      }
+    },
+    {
+      "name": "popup routes into native plugin tab",
+      "pass": true,
+      "details": {
+        "title": "/popup",
+        "url": "http://127.0.0.1:17839/popup"
+      }
+    },
+    {
+      "name": "right split uses host window group",
+      "pass": true,
+      "details": "Separate native group"
+    },
+    {
+      "name": "session cookie separate from host",
+      "pass": true,
+      "details": {
+        "guestFixture": true,
+        "hostFixture": false
+      }
+    },
+    {
+      "name": "saved body resources snapshot distinct statuses",
+      "pass": true,
+      "details": {
+        "docId": "20261009091009-d1cd335",
+        "resources": {
+          "http://127.0.0.1:17839/image.png": {
+            "path": "assets/web-d1cd335d-6519-4ab8-a3e0-c0f11576d6d1-0-20261009171009-quaq2tn.png"
+          },
+          "http://127.0.0.1:17839/missing.png": {
+            "error": "Error: HTTP 404"
+          },
+          "http://127.0.0.1:17839/download": {
+            "path": "assets/web-d1cd335d-6519-4ab8-a3e0-c0f11576d6d1-2-20261009171009-vozydl7.bin"
+          }
+        },
+        "snapshot": "assets/web-d1cd335d-6519-4ab8-a3e0-c0f11576d6d1-20261009171009-5uqw7pv.mhtml"
+      }
+    }
+  ]
+}

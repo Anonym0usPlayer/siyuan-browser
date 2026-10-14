@@ -1,0 +1,11 @@
+{
+  "time": "2026-10-09T11:15:58.058Z",
+  "pass": true,
+  "details": {
+    "url": "http://127.0.0.1:17839/article",
+    "zoom": 1.3,
+    "muted": true,
+    "reading": true,
+    "text": true
+  }
+}

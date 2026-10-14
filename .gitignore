@@ -1,0 +1,7 @@
+node_modules/
+dist/
+package.zip
+.test-workspace
+.test-home/
+.test-runtime/
+.DS_Store
