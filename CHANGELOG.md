@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-10-22
+
+- Replace the placeholder plugin icon with a blue globe and bookmark on a white-to-light-gray background, with subtle glass highlights.
+
 ## 0.1.1 — 2026-10-14
 
 - Show headings retained by reader extraction in SiYuan's outline dock, with hierarchy, collapse and click-to-jump in both webpage and reader views.

@@ -2,18 +2,40 @@
   "name": "siyuan-browser",
   "author": "fu1fan",
   "url": "https://github.com/fu1fan/siyuan-browser",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "3.8.6",
-  "backends": ["windows", "linux", "darwin"],
-  "frontends": ["desktop", "desktop-window"],
+  "backends": [
+    "windows",
+    "linux",
+    "darwin"
+  ],
+  "frontends": [
+    "desktop",
+    "desktop-window"
+  ],
   "disabledInPublish": true,
   "icon": "icon.png",
   "preview": "preview.png",
-  "displayName": { "default": "SiYuan Browser", "zh-CN": "思源浏览器" },
+  "displayName": {
+    "default": "SiYuan Browser",
+    "zh-CN": "思源浏览器"
+  },
   "description": {
     "default": "Isolated desktop web viewer, readable notes and offline archives.",
     "zh-CN": "在思源中浏览、阅读和剪藏网页，支持独立会话、正文笔记与离线归档。"
   },
-  "readme": { "default": "README.md", "zh-CN": "README_zh_CN.md" },
-  "keywords": ["browser", "webview", "web clipper", "reader", "archive", "浏览器", "网页剪藏", "阅读模式"]
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README_zh_CN.md"
+  },
+  "keywords": [
+    "browser",
+    "webview",
+    "web clipper",
+    "reader",
+    "archive",
+    "浏览器",
+    "网页剪藏",
+    "阅读模式"
+  ]
 }
