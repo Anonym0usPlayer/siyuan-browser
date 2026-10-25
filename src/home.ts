@@ -1,6 +1,5 @@
 import {
   mostVisited,
-  INTERNAL_URLS,
   moveHomeSection,
   readHomeLayout,
   type Entry,
@@ -181,13 +180,6 @@ export class HomePage {
       );
       header.append(title);
       const actions = element("div", "sb-home-section-actions");
-      if (section === "bookmarks" || section === "history") {
-        const all = button(p.t("showAll"), () =>
-          this.navigate(INTERNAL_URLS[section]),
-        );
-        all.classList.add("sb-home-section-link");
-        actions.append(all);
-      }
       if (section === "bookmarks")
         actions.append(
           iconButton("iconAdd", p.t("addBookmark"), () => this.addBookmark()),
@@ -208,11 +200,7 @@ export class HomePage {
         for (const entry of entries.slice(0, limit))
           list.append(entryRow(p, entry, section, this.navigate));
         block.append(list);
-        if (
-          section !== "bookmarks" &&
-          section !== "history" &&
-          (entries.length > limit || this.expanded.has(section))
-        ) {
+        if (entries.length > limit || this.expanded.has(section)) {
           const more = button(
             p.t(this.expanded.has(section) ? "showLess" : "showAll"),
             () => {

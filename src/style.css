@@ -41,6 +41,21 @@
   height: 16px;
   margin: 0;
 }
+/* The toolbar is icon-only and deliberately state-free. The host's outline
+ * button paints a primary ring, a hover fill and a pressed tint, and pointer
+ * presses used to leave a focus ring behind, which all read as a stuck toggle.
+ * None of them are wanted here, so every interactive state stays flat; disabled
+ * history buttons still dim through the host's opacity rule. */
+.sb-browser > .sb-toolbar > button,
+.sb-browser > .sb-toolbar > button:hover,
+.sb-browser > .sb-toolbar > button:focus,
+.sb-browser > .sb-toolbar > button:focus-visible,
+.sb-browser > .sb-toolbar > button:active {
+  color: var(--b3-theme-on-background);
+  background-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
 .sb-address {
   min-width: 30px;
   flex: 1;
@@ -175,10 +190,6 @@
   flex-direction: column;
   min-height: 0;
   height: 100%;
-}
-.sb-library-list {
-  overflow: auto;
-  flex: 1;
 }
 .sb-library .b3-list-item {
   display: flex;
@@ -509,91 +520,6 @@
   flex: 1;
   min-width: 160px;
 }
-.sb-library-content {
-  max-width: 1080px;
-  margin-inline: auto;
-}
-.sb-internal-nav {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border-bottom: 1px solid var(--b3-border-color);
-  margin-bottom: 28px;
-}
-.sb-internal-nav > button {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-  padding: 8px 0;
-  font-size: 13px;
-  color: var(--b3-theme-on-surface);
-}
-.sb-internal-nav > button[aria-current="page"] {
-  color: var(--b3-theme-primary);
-  box-shadow: 0 1px 0 var(--b3-theme-primary);
-}
-.sb-internal-library .sb-home-heading h1 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.sb-library-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.sb-library-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.sb-library-tools > input {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 12px;
-}
-.sb-library-tools > select {
-  max-width: 140px;
-}
-.sb-library-count {
-  flex-shrink: 0;
-  font-size: 12px;
-  white-space: nowrap;
-}
-.sb-library-results {
-  border-top: 1px solid var(--b3-border-color);
-  padding-top: 8px;
-}
-.sb-library-results > button {
-  margin-top: 12px;
-}
-.sb-library-day {
-  margin: 16px 6px 8px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.sb-library-nav {
-  padding: 8px;
-}
-.sb-library-nav .sb-library-shortcut {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: 10px;
-  padding: 8px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.sb-library-shortcut > span:last-child {
-  margin-left: auto;
-  font-size: 12px;
-}
 @container (max-width: 700px) {
   .sb-home-sections {
     grid-template-columns: minmax(0, 1fr);
@@ -627,16 +553,6 @@
     max-width: 72px;
     white-space: normal;
     text-align: right;
-  }
-  .sb-library-tools {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .sb-library-tools > input {
-    flex-basis: 100%;
-  }
-  .sb-library-count {
-    margin-left: auto;
   }
 }
 
@@ -690,10 +606,6 @@
   height: 38px;
   border-radius: 50%;
   border: 1px solid #888;
-}
-.sb-toolbar .sb-active {
-  color: var(--b3-theme-primary);
-  background: var(--b3-theme-primary-lightest);
 }
 .sb-save-heading {
   display: flex;

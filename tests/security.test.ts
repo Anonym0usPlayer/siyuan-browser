@@ -39,7 +39,7 @@ test("main-process hooks isolate plugin sessions, deny protocols and fully relea
     );
     assert.notEqual(a.partition, b.partition);
     assert.deepEqual(
-      await bridge.searchSuggestions("missing", "Bing", INTERNAL_URLS.history),
+      await bridge.searchSuggestions("missing", "Bing", INTERNAL_URLS.home),
       [],
     );
     assert.match(a.partition, /^persist:siyuan-browser-/);

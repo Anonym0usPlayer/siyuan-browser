@@ -8,6 +8,8 @@ import {
   suggestions,
   readConfig,
   httpURL,
+  migrateInternalURL,
+  HOME_URL,
 } from "../src/core";
 test("address distinguishes domains, search, and unsafe protocols", () => {
   assert.equal(address("example.com/a"), "https://example.com/a");
@@ -56,4 +58,24 @@ test("persisted invalid data cannot introduce executable URLs", () => {
   assert.deepEqual(c.subscriptions, ["https://example.com/list"]);
   assert.equal(clampZoom(9), 3);
   assert.equal(clampZoom(0.1), 0.5);
+});
+test("default filter subscriptions use the responsive official download host", () => {
+  assert.deepEqual(defaults.subscriptions, [
+    "https://easylist-downloads.adblockplus.org/easylist.txt",
+    "https://easylist-downloads.adblockplus.org/easyprivacy.txt",
+  ]);
+  assert.ok(defaults.subscriptions.every(httpURL));
+  assert.equal(defaults.updateDays, 4);
+});
+test("removed internal library pages fall back to the home page", () => {
+  // Layouts saved before 0.1.3 still point at the deleted library pages, and
+  // address() rejects unknown protocols, so the migration has to run first.
+  assert.equal(migrateInternalURL("siyuan-browser://bookmarks"), HOME_URL);
+  assert.equal(migrateInternalURL("siyuan-browser://history"), HOME_URL);
+  assert.equal(migrateInternalURL(HOME_URL), HOME_URL);
+  assert.equal(
+    migrateInternalURL("https://example.com/a"),
+    "https://example.com/a",
+  );
+  assert.throws(() => address("siyuan-browser://bookmarks"));
 });

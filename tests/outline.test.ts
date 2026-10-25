@@ -30,7 +30,7 @@ test("reader outline excludes site navigation and preserves duplicate heading ta
     <h2>Repeat</h2><p>${"First section. ".repeat(100)}</p>
     <h3>Detail</h3><p>${"Details. ".repeat(100)}</p>
     <h2>Repeat</h2><p>${"Second section. ".repeat(100)}</p></article>`);
-  const source = dom.window.eval(collectOutlineSource) as {
+  const source = dom.window.eval(collectOutlineSource("")) as {
     html: string;
     url: string;
     title: string;
@@ -82,7 +82,7 @@ test("modal UI is excluded and source targets remain stable when headings move",
   );
   const modal = document.querySelector<HTMLElement>('[role="dialog"]')!;
   modal.getClientRects = () => [{ width: 200 }] as unknown as DOMRectList;
-  const before = dom.window.eval(collectOutlineSource) as any;
+  const before = dom.window.eval(collectOutlineSource("")) as any;
   assert.equal(before.transient, true);
   assert.doesNotMatch(before.html, /Sign in|Login required/);
   assert.equal(before.headings.length, 2);
@@ -91,7 +91,7 @@ test("modal UI is excluded and source targets remain stable when headings move",
   extra.textContent = "Inserted";
   document.querySelector("article")!.prepend(extra);
   modal.style.display = "none";
-  const after = dom.window.eval(collectOutlineSource) as any;
+  const after = dom.window.eval(collectOutlineSource("")) as any;
   assert.equal(after.transient, false);
   assert.equal(after.headings.find((h: any) => h.text === "Section").key, key);
   dom.window.close();
@@ -106,7 +106,7 @@ test("visibility changes and a heading-free modal dismissal notify the outline o
     signals.push(signal);
   };
   dom.window.eval(observeOutlineChanges("outline-change"));
-  dom.window.eval(collectOutlineSource);
+  dom.window.eval(collectOutlineSource(""));
   await new Promise((resolve) => setTimeout(resolve, 550));
   assert.deepEqual(signals, []); // Marking source headings must not refresh itself.
   const modal = document.querySelector<HTMLElement>('[role="dialog"]')!;
@@ -202,5 +202,76 @@ test("native dock switches browser outlines, restores notes, supports collapse a
   controller.destroy();
   assert.equal(panel.querySelector(".sb-outline"), null);
   assert.equal(panel.classList.contains("sb-outline-host"), false);
+  dom.window.close();
+});
+
+test("heading signature skips the document snapshot until structure changes", () => {
+  const dom = setup(
+    "<article><h1>Article</h1><h2>Section</h2><p>Body</p></article>",
+  );
+  const first = dom.window.eval(collectOutlineSource("")) as any;
+  assert.equal(first.unchanged, undefined);
+  assert.match(first.html, /Section/);
+  const again = dom.window.eval(collectOutlineSource(first.signature)) as any;
+  assert.equal(again.unchanged, true);
+  assert.equal(again.html, undefined);
+  document.body.classList.add("theme-dark");
+  const styled = dom.window.eval(collectOutlineSource(first.signature)) as any;
+  assert.equal(styled.unchanged, true);
+  document.querySelector("article")!.append(document.createElement("figure"));
+  const structure = dom.window.eval(
+    collectOutlineSource(first.signature),
+  ) as any;
+  assert.equal(structure.unchanged, undefined);
+  assert.notEqual(structure.signature, first.signature);
+  dom.window.close();
+});
+
+test("collapsed branches and focus survive a content refresh", async () => {
+  const dom = setup(
+    '<div class="layout__wnd layout__wnd--active"><ul class="layout-tab-bar"><li id="web" class="item item--focus" data-type="tab-header"></li></ul></div><div class="sy__outline"></div>',
+  );
+  const panel = document.querySelector<HTMLElement>(".sy__outline")!;
+  const entry = { key: "root", text: "Root", level: 1, readerIndex: -1 };
+  const child = { key: "child", text: "Child", level: 2, readerIndex: 0 };
+  const view = {
+    disposed: false,
+    custom: { tab: { headElement: document.getElementById("web") } },
+    outline: [entry, child],
+    outlineLoading: false,
+    outlineCurrent: "child",
+    jumpToHeading: async () => {},
+  };
+  const controller = new BrowserOutline(
+    () => [view],
+    () => [panel],
+    "Empty",
+    "Loading",
+    (fn) => {
+      void fn();
+    },
+  );
+  await Promise.resolve();
+  const focused = () =>
+    panel.querySelector<HTMLElement>(".b3-list-item--focus")?.dataset
+      .outlineKey;
+  assert.equal(focused(), "child");
+  const root = panel.querySelector<HTMLElement>('[data-outline-key="root"]')!;
+  root.querySelector<HTMLElement>(".b3-list-item__toggle")!.click();
+  assert.equal(root.getAttribute("aria-expanded"), "false");
+  view.outline = [{ ...entry }, { ...child }];
+  view.outlineCurrent = "root";
+  controller.refresh();
+  const refreshed = panel.querySelector<HTMLElement>(
+    '[data-outline-key="root"]',
+  )!;
+  assert.equal(refreshed.getAttribute("aria-expanded"), "false");
+  const branch = refreshed.nextElementSibling as HTMLElement | null;
+  assert.equal(branch?.className, "b3-list");
+  assert.equal(branch?.hidden, true);
+  assert.equal(focused(), "root");
+  controller.refresh();
+  assert.equal(panel.querySelectorAll(".b3-list-item--focus").length, 1);
+  controller.destroy();
   dom.window.close();
 });

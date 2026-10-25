@@ -21,6 +21,15 @@ export async function filterSettings(fallback: any) {
 }
 const hash = (s: string) =>
   createHash("sha256").update(s).digest("hex").slice(0, 24);
+/** The project site easylist.to frequently stalls on slow routes, while the
+ * official download host serves the same lists without redirecting. Existing
+ * configs keep their URL; only the transfer falls back. */
+const MIRRORS: Record<string, string> = {
+  "https://easylist.to/easylist/easylist.txt":
+    "https://easylist-downloads.adblockplus.org/easylist.txt",
+  "https://easylist.to/easylist/easyprivacy.txt":
+    "https://easylist-downloads.adblockplus.org/easyprivacy.txt",
+};
 export function acquire(
   workspace: string,
   owner: number,
@@ -119,9 +128,6 @@ export function acquire(
       w.on("will-navigate", nav);
       w.on("will-redirect", nav);
       w.on("will-attach-webview", (e: any) => e.preventDefault());
-      w.on("context-menu", (_e: any, p: any) =>
-        send(w, { type: "context", params: p }),
-      );
       w.on("before-input-event", (e: any, input: any) => {
         if (
           (input.control || input.meta) &&
@@ -206,59 +212,130 @@ export async function configure(partition: string, config: any, force = false) {
     app.getPath("userData"),
     "siyuan-browser-filters.json",
   );
+  type ListCache = Record<string, { text: string; time: number }>;
+  const applyText = (text: string) => {
+    const engine = FiltersEngine.parse(text);
+    for (const s of states.values()) s.engine = engine;
+    return engine;
+  };
+  /** A single list may be several megabytes on a slow link: try the configured
+   * URL, fall back to the official mirror, and report timeouts as such instead
+   * of a bare AbortError. */
+  async function download(url: string) {
+    const attempts: { url: string; timeout: number }[] = [
+      { url, timeout: 30000 },
+    ];
+    if (MIRRORS[url]) attempts.push({ url: MIRRORS[url], timeout: 60000 });
+    let lastError: any;
+    for (const attempt of attempts)
+      for (let round = 1; round <= 2; round++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), attempt.timeout);
+        try {
+          const response = await session
+            .fromPartition("siyuan-browser-filter-fetch")
+            .fetch(attempt.url, {
+              credentials: "omit",
+              signal: controller.signal,
+            });
+          if (!response.ok) throw Error("Filter HTTP " + response.status);
+          const text = await response.text();
+          if (text.length > 20000000 || !text.includes("[Adblock"))
+            throw Error("Invalid filter list");
+          return text;
+        } catch (error: any) {
+          lastError = controller.signal.aborted
+            ? Error("timeout " + attempt.timeout / 1000 + "s")
+            : error;
+          const message = String(lastError?.message ?? lastError);
+          // A refused or invalid list will not improve by asking again.
+          if (/^Filter HTTP 4|Invalid filter list/.test(message)) break;
+          // Timeouts move on to the next candidate instead of stalling twice.
+          if (round < 2 && !controller.signal.aborted)
+            await new Promise((done) => setTimeout(done, 1000 * round));
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+    throw lastError;
+  }
+  let running: Promise<boolean> | null = null;
+  let complete = true;
+  /** Returns whether every subscribed list is now up to date. */
   async function update() {
+    const urls: string[] = settings.subscriptions;
+    const interval = settings.updateDays * 86400000;
+    const lists: ListCache = {};
+    const failures: string[] = [];
+    const kept: string[] = [];
     try {
       let old: any;
       try {
         old = JSON.parse(await fs.readFile(cache, "utf8"));
       } catch {}
-      const urls = settings.subscriptions;
-      if (old?.text) {
-        const engine = FiltersEngine.parse(old.text);
-        for (const s of states.values()) s.engine = engine;
-        if (
-          !force &&
-          JSON.stringify(old.urls) === JSON.stringify(urls) &&
-          (!settings.updateDays ||
-            Date.now() - old.time < settings.updateDays * 86400000)
-        )
-          return;
-      }
-      if (!settings.updateDays && !force) return;
-      const texts = await Promise.all(
-        urls.map(async (url: string) => {
-          const response = await session
-            .fromPartition("siyuan-browser-filter-fetch")
-            .fetch(url, {
-              credentials: "omit",
-              signal: AbortSignal.timeout(30000),
-            });
-          if (!response.ok) throw Error("Filter HTTP " + response.status);
-          const t = await response.text();
-          if (t.length > 20000000 || !t.includes("[Adblock"))
-            throw Error("Invalid filter list");
-          return t;
+      if (old?.lists && typeof old.lists === "object")
+        Object.assign(lists, old.lists);
+      const cached = typeof old?.text === "string" ? old.text : "";
+      const sameSet = JSON.stringify(old?.urls) === JSON.stringify(urls);
+      const age = Date.now() - (Number(old?.time) || 0);
+      if (cached) applyText(cached);
+      if (!force && cached && sameSet && (!settings.updateDays || age < interval))
+        return true;
+      if (!settings.updateDays && !force) return !!cached;
+      await Promise.all(
+        urls.map(async (url) => {
+          try {
+            lists[url] = { text: await download(url), time: Date.now() };
+          } catch (error: any) {
+            const message = String(error?.message ?? error);
+            // Fall back to the last good copy of this single list.
+            if (lists[url]?.text) kept.push(url + " (" + message + ")");
+            else failures.push(url + " (" + message + ")");
+          }
         }),
       );
-      const text = texts.join("\n");
-      const engine = FiltersEngine.parse(text);
-      await atomicJSON(cache, { urls, text, time: Date.now() });
-      for (const s of states.values()) {
-        s.engine = engine;
-        s.filterError = "";
-      }
+      for (const url of Object.keys(lists))
+        if (!urls.includes(url)) delete lists[url];
+      const usable = urls
+        .map((url) => lists[url]?.text)
+        .filter((text): text is string => !!text);
+      if (!usable.length && failures.length)
+        throw Error(failures.join("; "));
+      const text = usable.join("\n");
+      applyText(text);
+      await atomicJSON(cache, { urls, text, time: Date.now(), lists });
+      // Automatic retries stay quiet; a manual refresh reports what fell back.
+      const notes = failures.concat(kept).join("; ");
+      for (const s of states.values()) s.filterError = force ? notes : "";
+      return !failures.length && !kept.length;
     } catch (e) {
-      for (const s of states.values()) s.filterError = String(e);
+      const message = String(e);
+      for (const s of states.values())
+        s.filterError =
+          message.length > 300 ? message.slice(0, 300) + "…" : message;
+      return false;
     }
   }
-  await update();
+  function refresh() {
+    running ??= update().finally(() => (running = null));
+    return running;
+  }
+  /** Failed or partial updates retry within six hours instead of the full
+   * interval, so one slow download does not freeze the rules for days. */
+  const schedule = (s: any, interval: number) => {
+    clearTimeout(s.timer);
+    s.timer = setTimeout(
+      async () => {
+        complete = await refresh();
+        if (states.get(partition) === s) schedule(s, interval);
+      },
+      Math.max(60000, complete ? interval : Math.min(interval, 6 * 3600000)),
+    );
+  };
+  complete = await refresh();
   const s = states.get(partition);
   if (!s) return;
-  if (settings.updateDays)
-    s.timer = setInterval(
-      () => void update(),
-      Math.min(settings.updateDays * 86400000, 2147483647),
-    );
+  if (settings.updateDays) schedule(s, settings.updateDays * 86400000);
   return { loaded: !!s.engine, error: s.filterError || "" };
 }
 function owned(partition: string, id: number) {

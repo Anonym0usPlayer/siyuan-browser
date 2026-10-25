@@ -10,15 +10,10 @@ export const HOME_URL = "siyuan-browser://home";
 export const HOME_GUEST_URL = "about:blank#siyuan-browser-home";
 export const INTERNAL_URLS = {
   home: HOME_URL,
-  bookmarks: "siyuan-browser://bookmarks",
-  history: "siyuan-browser://history",
 } as const;
 export type InternalPage = keyof typeof INTERNAL_URLS;
-export type LibraryKind = Exclude<InternalPage, "home">;
 const INTERNAL_GUEST_URLS: Record<InternalPage, string> = {
   home: HOME_GUEST_URL,
-  bookmarks: "about:blank#siyuan-browser-bookmarks",
-  history: "about:blank#siyuan-browser-history",
 };
 export function internalPage(url: string): InternalPage | undefined {
   return (Object.keys(INTERNAL_URLS) as InternalPage[]).find(
@@ -33,6 +28,14 @@ export function internalPageFromGuest(url: string): InternalPage | undefined {
   return (Object.keys(INTERNAL_GUEST_URLS) as InternalPage[]).find(
     (page) => INTERNAL_GUEST_URLS[page] === url,
   );
+}
+/** Saved layouts and old links may still carry an internal address that was
+ * removed (the library pages); those fall back to the built-in home page
+ * instead of failing to load. */
+export function migrateInternalURL(url: string): string {
+  return url.startsWith("siyuan-browser://") && !internalPage(url)
+    ? HOME_URL
+    : url;
 }
 export const HOME_SECTIONS = [
   "bookmarks",
@@ -87,8 +90,8 @@ export const defaults: Config = {
   customSearch: "https://duckduckgo.com/?q=%s",
   adblock: true,
   subscriptions: [
-    "https://easylist.to/easylist/easylist.txt",
-    "https://easylist.to/easylist/easyprivacy.txt",
+    "https://easylist-downloads.adblockplus.org/easylist.txt",
+    "https://easylist-downloads.adblockplus.org/easyprivacy.txt",
   ],
   updateDays: 4,
   notebook: "",

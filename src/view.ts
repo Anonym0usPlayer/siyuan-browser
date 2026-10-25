@@ -12,10 +12,9 @@ import {
   internalPage,
   internalGuestURL,
   internalPageFromGuest,
-  type LibraryKind,
+  migrateInternalURL,
 } from "./core";
 import { HomePage } from "./home";
-import { LibraryPage } from "./library";
 import { collectSource, extract, collectSelection, markdown } from "./content";
 import type { Article } from "./content";
 import {
@@ -53,6 +52,7 @@ export class BrowserView {
   outlineTimer?: ReturnType<typeof setTimeout>;
   outlineRetries = 0;
   outlineArticle?: Article;
+  outlineSignature = "";
   outlineSignal = "siyuan-browser-outline-" + crypto.randomUUID();
   loading = false;
   back: HTMLButtonElement;
@@ -60,11 +60,13 @@ export class BrowserView {
   reload: HTMLButtonElement;
   bookmarkButton: HTMLButtonElement;
   readingButton: HTMLButtonElement;
+  moreButton: HTMLButtonElement;
+  moreMenu?: Menu;
+  moreOpen = false;
   saveButton: HTMLButtonElement;
   pageMenu = element("div", "sb-page-menu");
   filterOverride?: boolean;
   homePage: HomePage;
-  libraryPages: Record<LibraryKind, LibraryPage>;
   muted = false;
   disposed = false;
   transferring = false;
@@ -89,16 +91,12 @@ export class BrowserView {
     this.root.classList.add("sb-browser");
     setTabFavicon(custom.tab.headElement);
     const p = plugin;
-    this.url = data.url || HOME_URL;
+    this.url = migrateInternalURL(data.url || HOME_URL);
     const navigate = (url: string) => {
       this.navigate(url);
       if (!internalPage(this.url)) this.web?.focus();
     };
     this.homePage = new HomePage(p, navigate);
-    this.libraryPages = {
-      bookmarks: new LibraryPage(p, "bookmarks", navigate),
-      history: new LibraryPage(p, "history", navigate),
-    };
     this.homePage.root.hidden = true;
     this.zoom = clampZoom(data.zoom || 1);
     this.reader.style.fontSize = this.zoom + "em";
@@ -129,6 +127,12 @@ export class BrowserView {
     this.saveButton = iconButton("iconDownload", p.t("save"), () =>
       p.guard(() => p.savePage(this)),
     );
+    this.moreButton = iconButton("more", p.t("more"), () => this.menu());
+    // Marking the trigger as a menu anchor is the host's own contract: its
+    // window-level click handler skips dismissal for [data-menu="true"], which
+    // is what keeps the second press a toggle instead of a reopen.
+    this.moreButton.setAttribute("aria-haspopup", "menu");
+    this.moreButton.setAttribute("aria-expanded", "false");
     toolbar.append(
       this.back,
       this.forward,
@@ -140,7 +144,7 @@ export class BrowserView {
       this.bar,
       this.bookmarkButton,
       this.saveButton,
-      iconButton("more", p.t("more"), () => this.menu()),
+      this.moreButton,
     );
     this.pageMenu.hidden = true;
     this.pageMenu.setAttribute("role", "dialog");
@@ -219,8 +223,6 @@ export class BrowserView {
       this.status,
       this.reader,
       this.homePage.root,
-      this.libraryPages.bookmarks.root,
-      this.libraryPages.history.root,
     );
     let composingAddress = false;
     let draftAddress = "";
@@ -437,22 +439,6 @@ export class BrowserView {
       this.bar.value = this.addressValue();
     });
     this.root.addEventListener("pointerdown", () => (p.active = this));
-    this.reader.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      const target = e.target as HTMLElement;
-      const link = target.closest("a");
-      const img = target.closest("img");
-      this.context({
-        hostContext: true,
-        linkURL: link?.href,
-        linkText: link?.textContent,
-        mediaType: img ? "image" : undefined,
-        srcURL: img?.dataset.source,
-        selectionText: getSelection()?.toString() || "",
-        x: e.clientX,
-        y: e.clientY,
-      });
-    });
     if (p.adapter.reason) {
       this.syncPage(this.url);
       if (!internalPage(this.url)) this.showError("host", p.adapter.reason);
@@ -522,10 +508,9 @@ export class BrowserView {
     this.web.addEventListener("did-start-navigation", (e: any) => {
       if (e.isMainFrame !== true || e.isInPlace) return;
       this.restoreReading ||= this.reading;
-      this.reading = false;
-      this.reader.hidden = true;
-      this.readingButton.classList.remove("sb-active");
-      if (this.web) this.web.hidden = !!internalPage(this.url);
+        this.reading = false;
+        this.reader.hidden = true;
+        if (this.web) this.web.hidden = !!internalPage(this.url);
       this.clearOutline();
     });
     this.web.addEventListener("did-start-loading", () => {
@@ -561,11 +546,10 @@ export class BrowserView {
         if (documentChanged) {
           this.clearOutline();
           if (this.reading) {
-            this.restoreReading = true;
-            this.reading = false;
-            this.reader.hidden = true;
-            this.readingButton.classList.remove("sb-active");
-          }
+              this.restoreReading = true;
+              this.reading = false;
+              this.reader.hidden = true;
+            }
         }
         this.committedURL = url;
         this.syncPage(url);
@@ -668,11 +652,8 @@ export class BrowserView {
     this.status.textContent = "";
     this.reader.hidden = true;
     this.homePage.root.hidden = true;
-    for (const page of Object.values(this.libraryPages))
-      page.root.hidden = true;
     this.reading = false;
     this.closePageMenu();
-    this.readingButton.classList.remove("sb-active");
     if (this.web) this.web.hidden = true;
     this.errorPage.hidden = false;
     const card = element("div", "sb-error-card");
@@ -732,8 +713,6 @@ export class BrowserView {
     this.url = url;
     const page = !this.data.archive ? internalPage(url) : undefined;
     this.homePage.root.hidden = page !== "home";
-    for (const kind of ["bookmarks", "history"] as const)
-      this.libraryPages[kind].root.hidden = page !== kind;
     this.bookmarkButton.disabled = !httpURL(url) || !!this.data.archive;
     this.saveButton.disabled = !httpURL(url) || !!this.data.archive;
     this.readingButton.disabled = !httpURL(url) && !this.data.archive;
@@ -745,11 +724,10 @@ export class BrowserView {
       this.setLoading(false);
       this.restoreReading = false;
       this.reading = false;
-      this.readingButton.classList.remove("sb-active");
       this.reader.hidden = true;
       this.closeFind();
       this.status.textContent = "";
-      this.title = this.plugin.t(page === "home" ? "browserHome" : page);
+      this.title = this.plugin.t("browserHome");
       this.custom.tab.updateTitle?.(this.title);
       this.faviconEpoch++;
       setTabFavicon(this.custom.tab.headElement);
@@ -757,12 +735,7 @@ export class BrowserView {
     }
   }
   refreshInternalPages() {
-    for (const page of [
-      this.homePage,
-      this.libraryPages.bookmarks,
-      this.libraryPages.history,
-    ])
-      if (!page.root.hidden) page.refresh();
+    if (!this.homePage.root.hidden) this.homePage.refresh();
   }
   persist() {
     if (this.data.archive) return;
@@ -783,10 +756,9 @@ export class BrowserView {
         return;
       }
       this.addressEditing = false;
-      this.clearOutline();
-      this.reading = false;
-      this.readingButton.classList.remove("sb-active");
-      this.reader.hidden = true;
+        this.clearOutline();
+        this.reading = false;
+        this.reader.hidden = true;
       this.closeFind();
       this.syncPage(url);
       if (this.web) this.web.src = internalGuestURL(url) || url;
@@ -824,10 +796,9 @@ export class BrowserView {
     return extract(s.html, s.url, s.title, selection);
   }
   async toggleReader() {
-    if (this.reading) {
-      this.reading = false;
-      this.readingButton.classList.remove("sb-active");
-      this.reader.hidden = true;
+      if (this.reading) {
+        this.reading = false;
+        this.reader.hidden = true;
       this.web.hidden = false;
       this.persist();
       this.scheduleOutline();
@@ -872,9 +843,8 @@ export class BrowserView {
         if (httpURL(a.href)) this.plugin.open(a.href);
       }),
     );
-    this.reading = true;
-    this.readingButton.classList.add("sb-active");
-    this.web.hidden = true;
+      this.reading = true;
+      this.web.hidden = true;
     this.reader.hidden = false;
     this.persist();
   }
@@ -883,6 +853,7 @@ export class BrowserView {
     clearTimeout(this.outlineTimer);
     this.outline = [];
     this.outlineArticle = undefined;
+    this.outlineSignature = "";
     this.outlineCurrent = undefined;
     this.outlineLoading = false;
     this.outlineRetries = 0;
@@ -913,13 +884,20 @@ export class BrowserView {
     this.outlineLoading = !this.outline.length;
     this.plugin.outline?.schedule();
     try {
-      const source = await this.web.executeJavaScript(collectOutlineSource);
+      const source = await this.web.executeJavaScript(
+        collectOutlineSource(this.outlineSignature),
+      );
       if (
         epoch !== this.outlineEpoch ||
         this.disposed ||
         source.url !== this.url
       )
         return;
+      if (source.unchanged) {
+        // The page only changed cosmetics: the cached article still applies.
+        this.outlineRetries = 0;
+        return this.outlineArticle;
+      }
       if (source.transient && this.outlineArticle) return this.outlineArticle;
       const article = extract(source.html, source.url, source.title);
       const next = articleOutline(article, source.headings);
@@ -942,6 +920,8 @@ export class BrowserView {
         return this.outlineArticle;
       }
       this.outlineArticle = article;
+      // Only a snapshot we actually adopted may suppress the next one.
+      this.outlineSignature = source.signature || "";
       this.outlineRetries = 0;
       if (!sameOutline(this.outline, next)) this.outline = next;
       if (!this.outline.some((entry) => entry.key === this.outlineCurrent))
@@ -982,10 +962,8 @@ export class BrowserView {
     this.plugin.outline?.schedule();
   }
   showFind() {
-    const page = internalPage(this.url);
-    if (page) {
-      if (page === "home") this.homePage.search.focus();
-      else this.libraryPages[page].filter.focus();
+    if (internalPage(this.url)) {
+      this.homePage.search.focus();
       return;
     }
     this.findbar.hidden = false;
@@ -1081,13 +1059,13 @@ export class BrowserView {
   closePageMenu() {
     this.pageMenu.hidden = true;
     this.readingButton.setAttribute("aria-expanded", "false");
-    this.readingButton.classList.toggle("sb-active", this.reading);
   }
   showPageMenu() {
     if (!this.pageMenu.hidden) {
       this.closePageMenu();
       return;
     }
+    this.closeMore();
     const p = this.plugin;
     const render = () => {
       this.pageMenu.replaceChildren();
@@ -1197,7 +1175,6 @@ export class BrowserView {
           ),
         );
       }
-      this.readingButton.classList.toggle("sb-active", this.reading);
       if (!this.pageMenu.hidden) this.pageMenu.focus();
     };
     render();
@@ -1205,14 +1182,41 @@ export class BrowserView {
     this.readingButton.setAttribute("aria-expanded", "true");
     const rect = this.readingButton.getBoundingClientRect(),
       root = this.root.getBoundingClientRect();
+    // Keep the panel inside the tab body, mirroring the 3.8.8 menu anchoring.
+    const top = rect.bottom - root.top + 8;
+    const bottom = root.height - this.pageMenu.offsetHeight - 8;
     this.pageMenu.style.left =
       Math.max(6, Math.min(rect.left - root.left, root.width - 294)) + "px";
-    this.pageMenu.style.top = rect.bottom - root.top + 8 + "px";
+    this.pageMenu.style.top = Math.max(6, Math.min(top, bottom)) + "px";
     this.pageMenu.focus();
+  }
+  /** Forgets the menu; the host already removed it. */
+  resetMore() {
+    this.moreMenu = undefined;
+    this.moreOpen = false;
+    this.moreButton.setAttribute("aria-expanded", "false");
+    this.moreButton.removeAttribute("data-menu");
+  }
+  closeMore() {
+    const menu = this.moreMenu;
+    // Clearing moreMenu first makes the host close callback a no-op. The SDK
+    // only reports isOpen for menus built with a matching id, so the element's
+    // own visibility is the signal that something is still on screen.
+    this.resetMore();
+    if (menu && !menu.element.classList.contains("fn__none")) menu.close();
   }
   menu() {
     const p = this.plugin;
-    const m = new Menu();
+    // Same contract as the reader panel: press once to open, press again to
+    // dismiss.
+    if (this.moreOpen) {
+      this.closeMore();
+      return;
+    }
+    this.closePageMenu();
+    const m = new Menu(undefined, () => {
+      if (this.moreMenu === m) this.resetMore();
+    });
     const add = (label: string, fn: () => void) =>
       m.addItem({ label, click: fn });
     add(p.t("browserHome"), () => this.navigate(HOME_URL));
@@ -1241,111 +1245,22 @@ export class BrowserView {
       this.transferring = true;
       openWindow({ tab: this.custom.tab });
     });
-    add(p.t("history"), () => p.showLibrary("history"));
-    add(p.t("bookmarks"), () => p.showLibrary("bookmarks"));
     add(p.t("settings"), () => p.openSetting());
+    this.moreMenu = m;
+    this.moreOpen = true;
+    this.moreButton.setAttribute("aria-expanded", "true");
+    this.moreButton.setAttribute("data-menu", "true");
+    const rect = this.moreButton.getBoundingClientRect();
     m.open({
-      x: this.bar.getBoundingClientRect().right,
-      y: this.bar.getBoundingClientRect().bottom,
-    });
-  }
-  context(c: any) {
-    const p = this.plugin,
-      m = new Menu();
-    const add = (label: string, fn: () => void) =>
-      m.addItem({ label, click: fn });
-    const copy = (s: string) =>
-      window.require("electron").clipboard.writeText(s);
-    if (httpURL(c.linkURL)) {
-      add(p.t("current"), () => this.navigate(c.linkURL));
-      add(p.t("newTab"), () => p.open(c.linkURL));
-      add(p.t("right"), () => p.open(c.linkURL, "right"));
-      add(p.t("window"), () => p.open(c.linkURL, undefined, false, true));
-      add(p.t("external"), () => p.adapter.external(c.linkURL));
-      add(p.t("copyLink"), () => copy(c.linkURL));
-      add(p.t("bookmark"), () =>
-        p.bookmark(c.linkURL, c.linkText || c.linkURL),
-      );
-      m.addSeparator();
-    }
-    if (c.selectionText) {
-      add(p.t("searchSelection"), () =>
-        p.open(
-          p
-            .searchTemplate()
-            .replaceAll("%s", encodeURIComponent(c.selectionText)),
-        ),
-      );
-      add(p.t("extract"), () => p.guard(() => p.savePage(this, true)));
-      add(p.t("copy"), () => {
-        if (c.hostContext) {
-          const selection = selectedContent(this.reader);
-          if (selection) this.copyEnhanced({ ...selection, url: this.url });
-        } else this.web.copy();
-      });
-      m.addSeparator();
-    }
-    if (c.mediaType === "image" && httpURL(c.srcURL)) {
-      add(p.t("saveImage"), () => p.guard(() => p.saveImage(c.srcURL)));
-      add(p.t("copyImage"), () =>
-        p.guard(() =>
-          p.adapter.bridge.copyImage(p.adapter.partition, c.srcURL),
-        ),
-      );
-      add(p.t("copyImageURL"), () => copy(c.srcURL));
-      m.addSeparator();
-    }
-    if (c.isEditable)
-      for (const [key, action] of [
-        ["cut", "cut"],
-        ["paste", "paste"],
-        ["delete", "delete"],
-      ] as const)
-        add(p.t(key), () =>
-          p.adapter.bridge.action(
-            p.adapter.partition,
-            this.web.getWebContentsId(),
-            action,
-          ),
-        );
-    if (!c.linkURL && !c.selectionText && !c.isEditable) {
-      add(p.t("back"), () => this.web.goBack());
-      add(p.t("forward"), () => this.web.goForward());
-      add(p.t("reload"), () => this.web.reload());
-      add(p.t("bookmark"), () => p.bookmark(this.url, this.title));
-      add(p.t("external"), () => p.adapter.external(this.url));
-    }
-    add(p.t("selectAll"), () => {
-      if (this.reading) {
-        const range = document.createRange();
-        range.selectNodeContents(this.reader);
-        const selection = getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-        return;
-      }
-      p.adapter.bridge.action(
-        p.adapter.partition,
-        this.web.getWebContentsId(),
-        "selectAll",
-      );
-    });
-    const rect = this.web.getBoundingClientRect();
-    m.open({
-      x: Math.min(
-        innerWidth - 220,
-        (c.hostContext ? 0 : rect.left) + (c.x || 0),
-      ),
-      y: Math.min(
-        innerHeight - 200,
-        (c.hostContext ? 0 : rect.top) + (c.y || 0),
-      ),
+      x: Math.max(6, Math.min(rect.left, window.innerWidth - 220)),
+      y: rect.bottom,
     });
   }
   destroy() {
     this.clearOutline();
     if (this.disposed) return;
     this.disposed = true;
+    this.closeMore();
     this.viewportEpoch++;
     this.faviconEpoch++;
     clearTimeout(this.resizeTimer);

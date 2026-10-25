@@ -73,15 +73,38 @@ export function articleOutline(
 ): PageHeading[] {
   const doc = new DOMParser().parseFromString(article.html, "text/html");
   const used = new Set<string>();
+  // Bucket the source headings once so matching stays linear instead of
+  // rescanning every heading (and every duplicate text) for each article node.
+  const bucket = (key: (h: SourceHeading) => string) => {
+    const map = new Map<string, { list: SourceHeading[]; at: number }>();
+    for (const heading of source) {
+      const name = key(heading);
+      if (!name) continue;
+      const entry = map.get(name);
+      if (entry) entry.list.push(heading);
+      else map.set(name, { list: [heading], at: 0 });
+    }
+    return map;
+  };
+  const take = (
+    map: Map<string, { list: SourceHeading[]; at: number }>,
+    name: string | null,
+  ) => {
+    const entry = name ? map.get(name) : undefined;
+    if (!entry) return undefined;
+    while (entry.at < entry.list.length && used.has(entry.list[entry.at].key))
+      entry.at++;
+    return entry.list[entry.at];
+  };
+  const byKey = bucket((h) => h.key);
+  const byId = bucket((h) => (h.id ? h.id + "\u0000" + h.text : ""));
+  const byText = bucket((h) => h.text);
   const match = (el: Element) => {
     const text = headingText(el.textContent || "");
-    const key = el.getAttribute("data-sb-outline-target");
     const target =
-      source.find((h) => !used.has(h.key) && h.key === key) ||
-      source.find(
-        (h) => !used.has(h.key) && el.id && h.id === el.id && h.text === text,
-      ) ||
-      source.find((h) => !used.has(h.key) && h.text === text);
+      take(byKey, el.getAttribute("data-sb-outline-target")) ||
+      take(byId, el.id ? el.id + "\u0000" + text : "") ||
+      take(byText, text);
     if (target) used.add(target.key);
     return target;
   };
@@ -118,7 +141,10 @@ export function articleOutline(
   return entries;
 }
 
-export const collectOutlineSource = `(() => {
+/** Only ask for the heavy document snapshot when the heading signature moved.
+ * `expected` is the signature the host already holds for this page. */
+export function collectOutlineSource(expected: string): string {
+  return `(() => {
   const normalize = text => text.replace(/[\\u200b-\\u200d\\ufeff]/g,'').replace(/\\s+/g,' ').trim();
   const modal=${JSON.stringify(transientUI)};
   const transient=[...document.querySelectorAll(modal)].some(el=>{
@@ -133,12 +159,20 @@ export const collectOutlineSource = `(() => {
     el.setAttribute('data-sb-outline-target',key);
     return {key,id:el.id,text:normalize(el.textContent||''),level:Number(el.tagName[1])};
   });
+  if(!document.body) return {title:document.title,url:location.href,headings,transient,signature:''};
+  let hash=0x811c9dc5;
+  const payload=headings.map(h=>h.level+':'+h.text).join('|')+'#'+document.getElementsByTagName('*').length;
+  for(let i=0;i<payload.length;i++){hash^=payload.charCodeAt(i);hash=(hash*0x01000193)>>>0;}
+  const signature=hash.toString(16);
+  if(signature===${JSON.stringify(expected)} && !transient)
+    return {signature,unchanged:true,title:document.title,url:location.href,transient};
   const doc=document.documentElement.cloneNode(true);
   const live=[...document.images],copy=[...doc.querySelectorAll('img')];
   copy.forEach((e,i)=>{if(live[i]?.currentSrc)e.setAttribute('src',live[i].currentSrc)});
   doc.querySelectorAll(modal).forEach(el=>el.remove());
-  return {html:doc.outerHTML,title:document.title,url:location.href,headings,transient};
+  return {html:doc.outerHTML,title:document.title,url:location.href,headings,transient,signature};
 })()`;
+}
 
 export function scrollToPageHeading(entry: PageHeading): string {
   return `(() => {
@@ -197,8 +231,18 @@ export class BrowserOutline {
       view?: OutlineView;
       entries?: PageHeading[];
       loading?: boolean;
+      items?: Map<string, HTMLElement>;
+      focused?: string;
+      collapsed?: Set<string>;
     }
   >();
+  private last?: {
+    view?: OutlineView;
+    entries?: PageHeading[];
+    loading?: boolean;
+    current?: string;
+    panels: number;
+  };
   private observer: MutationObserver;
   private queued = false;
   private closed = false;
@@ -233,9 +277,21 @@ export class BrowserOutline {
       attributes: true,
       attributeFilter: ["class"],
     });
-    document.addEventListener("pointerdown", this.schedule, true);
+    document.addEventListener("pointerdown", this.onPointerDown, true);
     this.schedule();
   }
+  /** Tab switches already reach us through the observer; ignore clicks that
+   * cannot change the focused tab or the outline host. */
+  private onPointerDown = (event: Event) => {
+    const target = event.target as Element | null;
+    if (
+      !target?.closest?.(
+        ".layout-tab-bar,.layout__wnd,.layout-tab-container,.layout__dockl,.layout__dockr,.sy__outline",
+      )
+    )
+      return;
+    this.schedule();
+  };
   schedule = () => {
     if (this.closed || this.queued) return;
     this.queued = true;
@@ -260,7 +316,20 @@ export class BrowserOutline {
         this.panels.delete(panel);
       }
     }
-    if (!view) return;
+    if (!view) {
+      this.last = undefined;
+      return;
+    }
+    const count = this.panels.size;
+    if (
+      this.last?.view === view &&
+      this.last.entries === view.outline &&
+      this.last.loading === view.outlineLoading &&
+      this.last.current === view.outlineCurrent &&
+      this.last.panels === count &&
+      docks.size === count
+    )
+      return;
     for (const panel of docks) {
       let state = this.panels.get(panel);
       if (!state) {
@@ -280,6 +349,9 @@ export class BrowserOutline {
         const list = document.createElement("ul");
         list.className = "b3-list b3-list--background";
         list.setAttribute("role", "tree");
+        const items = new Map<string, HTMLElement>();
+        // Keep the user's collapsed branches across content refresh.
+        const collapsed = (state.collapsed ??= new Set<string>());
         const stack: { level: number; list: HTMLElement }[] = [
           { level: 0, list },
         ];
@@ -302,21 +374,29 @@ export class BrowserOutline {
           const toggle = document.createElement("span");
           toggle.className = "b3-list-item__toggle";
           if (hasChildren) {
-            li.setAttribute("aria-expanded", "true");
+            let open = !collapsed.has(entry.key);
+            li.setAttribute("aria-expanded", String(open));
+            childList.hidden = !open;
             toggle.innerHTML =
-              '<svg class="b3-list-item__arrow b3-list-item__arrow--open"><use href="#iconRight"></use></svg>';
+              '<svg class="b3-list-item__arrow' +
+              (open ? " b3-list-item__arrow--open" : "") +
+              '"><use href="#iconRight"></use></svg>';
             toggle.addEventListener("click", (e) => {
               e.stopPropagation();
-              childList.hidden = !childList.hidden;
-              li.setAttribute("aria-expanded", String(!childList.hidden));
+              open = childList.hidden;
+              childList.hidden = !open;
+              li.setAttribute("aria-expanded", String(open));
               toggle.firstElementChild?.classList.toggle(
                 "b3-list-item__arrow--open",
-                !childList.hidden,
+                open,
               );
+              if (open) collapsed.delete(entry.key);
+              else collapsed.add(entry.key);
             });
           } else toggle.classList.add("fn__hidden");
           li.style.paddingLeft = `${8 + (stack.length - 1) * 16}px`;
           li.append(toggle, text);
+          items.set(entry.key, li);
           const jump = () => this.guard(() => view.jumpToHeading(entry));
           li.addEventListener("click", jump);
           li.addEventListener("keydown", (e) => {
@@ -334,25 +414,36 @@ export class BrowserOutline {
           li.textContent = view.outlineLoading ? this.loading : this.empty;
           list.append(li);
         }
+        for (const key of collapsed) if (!items.has(key)) collapsed.delete(key);
         state.root.append(list);
         state.view = view;
         state.entries = view.outline;
         state.loading = view.outlineLoading;
+        state.items = items;
+        state.focused = undefined;
       }
-      state.root
-        .querySelectorAll<HTMLElement>("[data-outline-key]")
-        .forEach((li) => {
-          li.classList.toggle(
-            "b3-list-item--focus",
-            li.dataset.outlineKey === view.outlineCurrent,
-          );
-        });
+      if (state.focused !== view.outlineCurrent) {
+        if (state.focused)
+          state.items?.get(state.focused)?.classList.remove("b3-list-item--focus");
+        const next = view.outlineCurrent
+          ? state.items?.get(view.outlineCurrent)
+          : undefined;
+        next?.classList.add("b3-list-item--focus");
+        state.focused = view.outlineCurrent;
+      }
     }
+    this.last = {
+      view,
+      entries: view.outline,
+      loading: view.outlineLoading,
+      current: view.outlineCurrent,
+      panels: this.panels.size,
+    };
   }
   destroy() {
     this.closed = true;
     this.observer.disconnect();
-    document.removeEventListener("pointerdown", this.schedule, true);
+    document.removeEventListener("pointerdown", this.onPointerDown, true);
     for (const [panel, state] of this.panels) {
       state.root.remove();
       panel.classList.remove("sb-outline-host");

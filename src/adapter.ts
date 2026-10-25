@@ -9,7 +9,10 @@ export class DesktopBrowserAdapter {
     try {
       this.remote = window.require("@electron/remote");
       const host = this.remote.getCurrentWebContents();
-      if (!host.getLastWebPreferences().webviewTag)
+      // Electron 44 deprecates getLastWebPreferences; only refuse when the host
+      // still reports webviewTag explicitly disabled.
+      const prefs = host.getLastWebPreferences?.();
+      if (prefs && !prefs.webviewTag)
         throw Error("远程内核或当前宿主禁止网页视图，请使用系统浏览器。");
       this.owner = host.id;
       const path = window.require("node:path");

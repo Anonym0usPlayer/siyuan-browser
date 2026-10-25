@@ -84,10 +84,6 @@ export function entryRow(
     if (section === "recentlyClosed") void p.reopen(entry as ClosedEntry);
     else void p.open(entry.url, undefined, true);
   });
-  link.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-    p.homeEntryMenu(entry, section, event);
-  });
   row.append(link);
   const meta =
     section === "mostVisited"

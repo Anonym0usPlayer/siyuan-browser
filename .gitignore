@@ -5,3 +5,8 @@ package.zip
 .test-home/
 .test-runtime/
 .DS_Store
+# Local agent workspace data, not part of the plugin.
+.workbuddy/
+# pnpm is only used for local builds; npm and package-lock.json stay canonical.
+pnpm-lock.yaml
+pnpm-workspace.yaml

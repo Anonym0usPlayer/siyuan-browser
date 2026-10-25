@@ -4,7 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/fu1fan/siyuan-browser)](https://github.com/fu1fan/siyuan-browser/releases/latest)
 [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![SiYuan](https://img.shields.io/badge/SiYuan-3.8.6%2B-green)](https://b3log.org/siyuan/)
+[![SiYuan](https://img.shields.io/badge/SiYuan-3.8.8%2B-green)](https://b3log.org/siyuan/)
 
 Browse, read and clip web pages inside SiYuan. Turn articles into editable notes and keep an MHTML snapshot for offline reference.
 
@@ -16,7 +16,7 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 
 - **Native tabs**: open websites in SiYuan tabs, split panes or separate windows. HTTP(S) note links open in the plugin by default; this can be disabled in settings.
 - **Address and search**: enter a URL, domain or search term; search bookmarks, history and provider suggestions. DuckDuckGo is the default search engine.
-- **Home and library**: bookmarks, most visited pages, recently closed tabs and history, with configurable section visibility and order. Library pages support search, sorting, deletion and pagination.
+- **Home and library**: bookmarks, most visited pages, recently closed tabs and history on the built-in home page, with configurable section visibility and order. Each section expands in place and a sidebar dock lists the same entries. A separate library tab page is no longer offered.
 - **Reader**: extract the article and adjust theme, font, page zoom, fit-to-width and find-in-page.
 - **Page outline**: headings retained by reader extraction appear in SiYuan's outline dock. Click to jump in either the original webpage or reader view; switching back to a note restores its outline.
 - **Web clipping**: choose a notebook, parent document or template path; create an editable note, transfer available downloadable resources and save an MHTML snapshot separately.
@@ -26,7 +26,7 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 
 ## Installation
 
-Requires the **SiYuan desktop app 3.8.6 or newer**. The manifest targets macOS, Windows and Linux. The demonstrated workflow was checked on macOS; native Windows/Linux acceptance remains pending. Mobile and browser frontends cannot host the embedded browser. Remote-kernel mode offers a system-browser fallback.
+Requires the **SiYuan desktop app 3.8.8 or newer**. The manifest targets macOS, Windows and Linux. The demonstrated workflow was checked on macOS; native Windows/Linux acceptance remains pending. Mobile and browser frontends cannot host the embedded browser. Remote-kernel mode offers a system-browser fallback.
 
 **SiYuan Bazaar**: after the listing is approved, search for “SiYuan Browser” in Settings → Bazaar → Plugins, then install and enable it.
 
@@ -65,7 +65,7 @@ Extraction and Markdown conversion use **Defuddle 0.19.4**, including formula, f
 
 ### Copy a passage or reopen an archive
 
-Select web or reader text, copy with Cmd/Ctrl+C or the context menu, then paste normally into SiYuan. Editable controls keep ordinary copying and conversion failures fall back to plain text. Selection copy preserves remote image URLs; it does not download images or save a whole-page snapshot.
+Select web or reader text, copy with Cmd/Ctrl+C (or the copy item in the host's own context menu), then paste normally into SiYuan. Editable controls keep ordinary copying and conversion failures fall back to plain text. Selection copy preserves remote image URLs; it does not download images or save a whole-page snapshot.
 
 Open an archive from the save job or its note link. MHTML uses a separate view with scripts and network requests disabled.
 
@@ -103,7 +103,7 @@ Open an archive from the save job or its note link. MHTML uses a separate view w
 
 **Why is a database item missing?** Check the selected database/template and job error. A regular database insertion failure can retry the existing document. If template creation had an uncertain response, check for an already-created item first.
 
-**What has been verified?** This release's live macOS workflow covered public page navigation, reader/menu interactions, clipping with the default template path, the generated note and MHTML opening. Database templates, the complete context-menu/download matrix and Windows/Linux were not accepted through this live run. See [validation](docs/VALIDATION.md), which is currently in Chinese.
+**What has been verified?** This release's live macOS workflow covered public page navigation, reader/menu interactions, clipping with the default template path, the generated note and MHTML opening. Database templates, the complete download matrix and Windows/Linux were not accepted through this live run. See [validation](docs/VALIDATION.md), which is currently in Chinese.
 
 ## Development and feedback
 

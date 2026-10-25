@@ -16,6 +16,10 @@ export function button(text: string, fn: () => void, title = text) {
   b.addEventListener("click", (event) => {
     event.stopPropagation();
     fn();
+    // The host paints a focus ring on the pressed button, which reads as a
+    // stuck toggle until the user clicks empty space. Pointer activation
+    // releases it; keyboard activation (detail 0) keeps focus for a11y.
+    if (event.detail > 0) b.blur();
   });
   return b;
 }

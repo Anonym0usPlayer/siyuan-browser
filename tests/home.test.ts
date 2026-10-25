@@ -286,31 +286,7 @@ test("homepage navigation, close/reopen and section changes integrate with brows
       ),
       HOME_SECTIONS,
     );
-    v.navigate(INTERNAL_URLS.bookmarks);
-    assert.equal(v.homePage.root.hidden, true);
-    assert.equal(v.libraryPages.bookmarks.root.hidden, false);
-    assert.equal(v.libraryPages.history.root.hidden, true);
-    assert.equal(v.web.hidden, true);
-    assert.equal(v.bar.value, INTERNAL_URLS.bookmarks);
-    assert.equal(v.custom.data.url, INTERNAL_URLS.bookmarks);
-    v.web.emitTitle("Guest blank title");
-    assert.equal(v.title, "bookmarks");
-    v.navigate(INTERNAL_URLS.history);
-    assert.equal(v.libraryPages.bookmarks.root.hidden, true);
-    assert.equal(v.libraryPages.history.root.hidden, false);
-    v.showFind();
-    assert.equal(document.activeElement, v.libraryPages.history.filter);
-    assert.equal(p.config.history.length, 0);
-    v.back.click();
-    assert.equal(v.url, INTERNAL_URLS.bookmarks);
-    v.back.click();
-    assert.equal(v.url, HOME_URL);
-    const restoredInternal = mount(INTERNAL_URLS.history);
-    assert.equal(restoredInternal.libraryPages.history.root.hidden, false);
-    restoredInternal.destroy();
     assert.equal(p.config.recentlyClosed.length, 0);
-    const opened = await p.showLibrary("bookmarks");
-    assert.equal(opened.options.custom.data.url, INTERNAL_URLS.bookmarks);
     v.navigate("https://example.com/");
     v.web.emitTitle("Example");
     v.web.emitTitle("Example updated");
@@ -670,112 +646,6 @@ test("homepage navigation, close/reopen and section changes integrate with brows
     p.closing = true;
     clearTimeout(p.timer);
     for (const view of [...p.views] as any[]) view.destroy();
-    dom.window.close();
-  }
-});
-
-test("library pages support local filtering, sorting, pagination and shared list updates", async () => {
-  const dom = new JSDOM("<!doctype html><body></body>");
-  Object.assign(globalThis, { document: dom.window.document });
-  const bundle = await build({
-    entryPoints: ["src/library.ts"],
-    bundle: true,
-    write: false,
-    platform: "node",
-    format: "cjs",
-    plugins: [
-      {
-        name: "siyuan-stub",
-        setup(builder) {
-          builder.onResolve({ filter: /^siyuan$/ }, () => ({
-            path: "siyuan",
-            namespace: "stub",
-          }));
-          builder.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-            contents: "export class Dialog {}",
-          }));
-        },
-      },
-    ],
-  });
-  const module = { exports: {} as any };
-  new Function("module", "exports", bundle.outputFiles[0].text)(
-    module,
-    module.exports,
-  );
-  const { LibraryPage } = module.exports;
-  const config = readConfig({
-    bookmarks: Array.from({ length: 65 }, (_, i) => ({
-      title:
-        i === 0
-          ? '<img src=x onerror="alert(1)">'
-          : `Page ${String(i).padStart(2, "0")}`,
-      url: `https://example.com/${i}`,
-      time: i,
-    })),
-    history: [
-      {
-        title: "Yesterday",
-        url: "https://old.example",
-        time: Date.now() - 86400000,
-      },
-      { title: "Today", url: "https://today.example", time: Date.now() },
-    ],
-  });
-  let page: any;
-  const navigated: string[] = [];
-  let cleared: string | undefined;
-  const p = {
-    config,
-    t: (key: string) => key,
-    open() {},
-    homeEntryMenu() {},
-    removeEntry(kind: "bookmarks" | "history", url: string) {
-      config[kind] = config[kind].filter((e) => e.url !== url);
-      page.refresh();
-    },
-    clearEntries(kind: string) {
-      cleared = kind;
-    },
-  };
-  try {
-    page = new LibraryPage(p, "bookmarks", (url: string) =>
-      navigated.push(url),
-    );
-    assert.equal(page.results.querySelectorAll("a").length, 50);
-    page.results.querySelector(":scope > button").click();
-    assert.equal(page.results.querySelectorAll("a").length, 65);
-    assert.equal(page.results.querySelector("img"), null);
-    page.filter.value = "Page 01";
-    page.filter.dispatchEvent(new dom.window.Event("input"));
-    assert.equal(page.results.querySelectorAll("a").length, 1);
-    assert.equal(page.count.textContent, "1 / 65");
-    page.results.querySelector("a").click();
-    assert.equal(navigated.at(-1), "https://example.com/1");
-    page.results.querySelector(".sb-home-row > button").click();
-    assert.equal(config.bookmarks.length, 64);
-    assert.equal(page.results.querySelectorAll("a").length, 0);
-    page.filter.value = "";
-    page.filter.dispatchEvent(new dom.window.Event("input"));
-    page.sort.value = "oldest";
-    page.sort.dispatchEvent(new dom.window.Event("change"));
-    assert.equal(page.results.querySelector("a").href, "https://example.com/0");
-    page.root.querySelector('[aria-current="page"]').click();
-    assert.equal(navigated.at(-1), INTERNAL_URLS.bookmarks);
-    page.clear.click();
-    assert.equal(cleared, "bookmarks");
-    page = new LibraryPage(p, "history", (url: string) => navigated.push(url));
-    assert.equal(
-      page.results.querySelector("a").href,
-      "https://today.example/",
-    );
-    assert.equal(page.results.querySelectorAll("h2").length, 2);
-    assert.equal(config.history[0].title, "Yesterday");
-    config.history = [];
-    page.refresh();
-    assert.equal(page.clear.disabled, true);
-    assert.equal(page.results.querySelectorAll("a").length, 0);
-  } finally {
     dom.window.close();
   }
 });

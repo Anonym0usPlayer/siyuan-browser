@@ -3,7 +3,6 @@ import { chooseDestination, resolveParentPath } from "./destination";
 import {
   Plugin,
   Setting,
-  Menu,
   openTab,
   openWindow,
   showMessage,
@@ -22,11 +21,8 @@ import {
   updateHistoryTitle,
   addClosed,
   HOME_URL,
-  INTERNAL_URLS,
-  type LibraryKind,
+  migrateInternalURL,
   type ClosedEntry,
-  type Entry,
-  type HomeSection,
 } from "./core";
 import { homeLayoutControls } from "./home";
 import { FaviconCache, FAVICON_BYTES, storedFavicon } from "./favicon";
@@ -107,8 +103,6 @@ export default class BrowserPlugin extends Plugin {
     });
     const commands: [string, () => void][] = [
       ["open", () => this.open(this.config.home)],
-      ["history", () => this.showLibrary("history")],
-      ["bookmarks", () => this.showLibrary("bookmarks")],
       ["browserHome", () => this.open(HOME_URL)],
       [
         "reopenClosed",
@@ -147,7 +141,6 @@ export default class BrowserPlugin extends Plugin {
       (fn) => this.guard(fn),
     );
     this.eventBus.on("open-link", this.openLink);
-    this.eventBus.on("open-menu-link", this.linkMenu);
     return this.ready;
   }
   async onDataChanged() {
@@ -178,7 +171,12 @@ export default class BrowserPlugin extends Plugin {
           this.adapter.partition,
           this.config,
         );
-        if (result?.error) showMessage(this.t("filterError") + result.error);
+        // Only claim a cache is retained when rules actually loaded.
+        if (result?.error)
+          showMessage(
+            this.t(result.loaded ? "filterError" : "filterErrorEmpty") +
+              result.error,
+          );
       });
     for (const d of this.libraryRoots) this.renderLibrary(d);
   }
@@ -204,22 +202,6 @@ export default class BrowserPlugin extends Plugin {
       this.guard(() => this.openArchive(href));
     }
   };
-  linkMenu = (e: CustomEvent) => {
-    const href =
-      e.detail?.element?.getAttribute("data-href") ||
-      e.detail?.element?.getAttribute("href");
-    if (httpURL(href)) {
-      e.detail.menu.addItem({
-        label: this.t("open"),
-        icon: "iconBrowser",
-        click: () => this.open(href),
-      });
-      e.detail.menu.addItem({
-        label: this.t("external"),
-        click: () => this.adapter.external(href),
-      });
-    }
-  };
   async open(
     url: string,
     position?: "right" | "bottom",
@@ -235,7 +217,7 @@ export default class BrowserPlugin extends Plugin {
         icon: "iconBrowser",
         title: this.t("open"),
         data: {
-          url: address(url, this.searchTemplate()),
+          url: address(migrateInternalURL(url), this.searchTemplate()),
           instanceId: crypto.randomUUID(),
         },
       },
@@ -265,7 +247,6 @@ export default class BrowserPlugin extends Plugin {
     }
     if (!v) return;
     this.active = v;
-    if (e.type === "context") v.context(e.params);
     if (e.type === "key") {
       const i = e.input,
         key = i.key.toLowerCase();
@@ -372,39 +353,6 @@ export default class BrowserPlugin extends Plugin {
       throw Error("Invalid bookmark URL");
     this.bookmark(url, title.trim() || new URL(url).hostname);
   }
-  homeEntryMenu(entry: Entry, section: HomeSection, event: MouseEvent) {
-    const menu = new Menu();
-    menu.addItem({
-      label: this.t("newTab"),
-      icon: "iconBrowser",
-      click: async () => {
-        if (section === "recentlyClosed")
-          await this.reopen(entry as ClosedEntry);
-        else await this.open(entry.url);
-      },
-    });
-    menu.addItem({
-      label: this.t("right"),
-      click: async () => {
-        await this.open(entry.url, "right");
-      },
-    });
-    menu.addItem({
-      label: this.t("external"),
-      click: () => this.adapter.external(entry.url),
-    });
-    menu.addItem({
-      label: this.t("copyLink"),
-      click: () => window.require("electron").clipboard.writeText(entry.url),
-    });
-    if (section !== "bookmarks")
-      menu.addItem({
-        label: this.t("bookmark"),
-        icon: "iconBookmark",
-        click: () => this.bookmark(entry.url, entry.title),
-      });
-    menu.open({ x: event.clientX, y: event.clientY });
-  }
   bookmark(url: string, title: string) {
     if (!httpURL(url)) return;
     this.config.bookmarks = addHistory(this.config.bookmarks, {
@@ -452,6 +400,7 @@ export default class BrowserPlugin extends Plugin {
     list.append(searchRow, results);
     let selected: "tabs" | "bookmarks" | "history" = "tabs";
     let limit = 100;
+    let lastSignature = "";
     const controls = new Map<string, HTMLButtonElement>();
     const refresh = () => {
       const query = search.value.trim().toLocaleLowerCase();
@@ -464,6 +413,23 @@ export default class BrowserPlugin extends Plugin {
       const matches = entries.filter((e) =>
         (e.title + " " + e.url).toLocaleLowerCase().includes(query),
       );
+      const visible = matches.slice(0, limit);
+      // Docks are refreshed on every tab change; rebuilding up to 100 rows for
+      // identical data is pure layout cost, so compare a cheap signature first.
+      const signature =
+        selected +
+        "|" +
+        query +
+        "|" +
+        limit +
+        "|" +
+        entries.length +
+        "|" +
+        (this.active ? [...this.views].indexOf(this.active) : -2) +
+        "|" +
+        visible.map((e) => e.title + "\u0000" + e.url).join("\u0001");
+      if (signature === lastSignature) return;
+      lastSignature = signature;
       for (const [kind, control] of controls) {
         control.classList.toggle("b3-list-item--focus", kind === selected);
         control.setAttribute("aria-pressed", String(kind === selected));
@@ -477,7 +443,7 @@ export default class BrowserPlugin extends Plugin {
             matches.length,
         ),
       );
-      for (const entry of matches.slice(0, limit)) {
+      for (const entry of visible) {
         const row = button(
           "",
           () => {
@@ -554,19 +520,6 @@ export default class BrowserPlugin extends Plugin {
     root.append(header, list);
     this.dockRefresh.set(root, refresh);
     refresh();
-  }
-  showLibrary(kind: LibraryKind) {
-    return this.open(INTERNAL_URLS[kind]);
-  }
-  clearEntries(kind: LibraryKind) {
-    confirm(
-      this.t(kind === "history" ? "clearHistory" : "clearBookmarks"),
-      this.t("confirmHistory"),
-      () => {
-        this.config[kind] = [];
-        this.persist();
-      },
-    );
   }
   openSearch() {
     const d = dialog(this.t("search"));
@@ -915,7 +868,6 @@ export default class BrowserPlugin extends Plugin {
     clearTimeout(this.timer);
     for (const j of this.jobs) j.cancelled = true;
     this.eventBus.off("open-link", this.openLink);
-    this.eventBus.off("open-menu-link", this.linkMenu);
     for (const v of [...this.views]) v.destroy();
     await Promise.allSettled([
       this.adapter?.close(),
