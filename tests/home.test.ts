@@ -294,6 +294,50 @@ test("homepage navigation, close/reopen and section changes integrate with brows
     assert.equal(p.config.history[0].title, "Example updated");
     assert.equal(v.homePage.root.hidden, true);
     assert.equal(v.web.hidden, false);
+    // The star reflects the saved state of the current URL and toggles it.
+    assert.equal(v.bookmarkButton.getAttribute("aria-pressed"), "false");
+    assert.equal(v.bookmarkButton.title, "bookmark");
+    v.bookmarkButton.click();
+    assert.equal(v.bookmarkButton.getAttribute("aria-pressed"), "true");
+    assert.equal(v.bookmarkButton.title, "removeBookmark");
+    assert.ok(
+      p.config.bookmarks.some((entry: any) => entry.url === "https://example.com/"),
+    );
+    assert.equal(
+      p.config.bookmarks[0].title,
+      "Example updated",
+      "the bookmark name follows the page title",
+    );
+    v.bookmarkButton.click();
+    assert.equal(v.bookmarkButton.getAttribute("aria-pressed"), "false");
+    assert.equal(p.config.bookmarks.length, 0);
+    // Save it again so the navigation below has a filled star to restore.
+    v.bookmarkButton.click();
+    // syncPage keeps the guest journal untouched, so the history counts asserted
+    // later in this test stay valid.
+    v.syncPage("https://other.example/");
+    assert.equal(
+      v.bookmarkButton.getAttribute("aria-pressed"),
+      "false",
+      "a different page must not inherit the previous filled star",
+    );
+    v.syncPage("https://example.com/");
+    assert.equal(
+      v.bookmarkButton.getAttribute("aria-pressed"),
+      "true",
+      "returning to a saved page fills the star again",
+    );
+    p.removeEntry("bookmarks", "https://example.com/");
+    assert.equal(
+      v.bookmarkButton.getAttribute("aria-pressed"),
+      "false",
+      "deleting the bookmark elsewhere empties the star",
+    );
+    // A page that has not reported a title yet falls back to the host name.
+    const savedTitle = v.title;
+    v.title = "https://plain.example/";
+    assert.equal(v.bookmarkTitle("https://plain.example/"), "plain.example");
+    v.title = savedTitle;
     Object.defineProperty(v.web, "clientWidth", { value: 800 });
     // macOS pointer activation can blur the panel without focusing a button.
     // The blur microtask runs before mouseup/click, so hiding here swallows it.

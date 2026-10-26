@@ -13,6 +13,7 @@
   "forward": "前进",
   "reload": "刷新 / 停止",
   "bookmark": "收藏网页",
+  "removeBookmark": "取消收藏",
   "more": "更多",
   "find": "页内查找",
   "external": "系统浏览器打开",

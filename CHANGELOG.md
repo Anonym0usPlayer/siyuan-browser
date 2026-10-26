@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 — 2026-10-26
+
+- Make the toolbar star a real bookmark toggle: it is filled when the current page is already saved and hollow when it is not, and a press adds or removes that bookmark instead of only adding. The state also clears when the bookmark is deleted from the home page or the sidebar, and survives back/forward navigation.
+- Name a bookmark after the page title. The saved title comes from the live guest title, then the title the tab already shows, and only falls back to the host name when the page has none, so pressing the star early in a load no longer stores a URL as the name.
+
 ## 0.1.3 — 2026-10-25
 
 - Remove every right-click menu: the page context menu (link, image, selection, editable and blank branches), the two items appended to SiYuan's native link menu, and the library entry menu. Toolbar and reader panels keep their click menus.

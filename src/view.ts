@@ -28,6 +28,8 @@ import {
 } from "./outline";
 import { element, button, iconButton, icon } from "./ui";
 import type BrowserPlugin from "./index";
+/** Shown on the tab before a page reports its own title. */
+const UNTITLED = "Browser";
 export class BrowserView {
   web: any;
   root: HTMLElement;
@@ -41,7 +43,7 @@ export class BrowserView {
   suggest = element("div", "b3-list sb-suggestions");
   url = "about:blank";
   committedURL = "";
-  title = "Browser";
+  title = UNTITLED;
   zoom = 1;
   fitWidth = true;
   reading = false;
@@ -119,8 +121,9 @@ export class BrowserView {
     });
     this.back.disabled = this.forward.disabled = true;
     this.bookmarkButton = iconButton("star", p.t("bookmark"), () =>
-      p.bookmark(this.url, this.title),
+      this.toggleBookmark(),
     );
+    this.bookmarkButton.setAttribute("aria-pressed", "false");
     this.readingButton = iconButton("iconAlignLeft", p.t("pageOptions"), () =>
       this.showPageMenu(),
     );
@@ -714,6 +717,7 @@ export class BrowserView {
     const page = !this.data.archive ? internalPage(url) : undefined;
     this.homePage.root.hidden = page !== "home";
     this.bookmarkButton.disabled = !httpURL(url) || !!this.data.archive;
+    this.refreshBookmark();
     this.saveButton.disabled = !httpURL(url) || !!this.data.archive;
     this.readingButton.disabled = !httpURL(url) && !this.data.archive;
     this.closePageMenu();
@@ -733,6 +737,43 @@ export class BrowserView {
       setTabFavicon(this.custom.tab.headElement);
       this.refreshInternalPages();
     }
+  }
+  /** Bookmark names follow the page title, like a browser: the live guest title
+   * first, then the title the tab already shows, then the host name. */
+  bookmarkTitle(url: string) {
+    const webTitle = String(this.web?.getTitle?.() || "").trim();
+    if (webTitle && webTitle !== url) return webTitle;
+    const title = this.title.trim();
+    if (title && title !== url && title !== UNTITLED) return title;
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return url;
+    }
+  }
+  /** Saved entries keep their own URL form, which may differ by a trailing slash. */
+  savedBookmark() {
+    const key = (url: string) => url.replace(/\/$/, "");
+    return this.plugin.config.bookmarks.find(
+      (entry) => key(entry.url) === key(this.url),
+    );
+  }
+  /** The star mirrors whether the current URL is already saved, like a browser. */
+  refreshBookmark() {
+    const saved =
+      !this.data.archive && httpURL(this.url) && !!this.savedBookmark();
+    const label = this.plugin.t(saved ? "removeBookmark" : "bookmark");
+    this.bookmarkButton.setAttribute("aria-pressed", String(saved));
+    this.bookmarkButton.title = label;
+    this.bookmarkButton.setAttribute("aria-label", label);
+  }
+  toggleBookmark() {
+    const p = this.plugin;
+    if (!httpURL(this.url) || this.data.archive) return;
+    const saved = this.savedBookmark();
+    if (saved) p.removeEntry("bookmarks", saved.url);
+    else p.bookmark(this.url, this.bookmarkTitle(this.url));
+    this.refreshBookmark();
   }
   refreshInternalPages() {
     if (!this.homePage.root.hidden) this.homePage.refresh();

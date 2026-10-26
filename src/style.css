@@ -56,6 +56,12 @@
   box-shadow: none;
   outline: none;
 }
+/* The bookmark star is the only stateful toolbar icon: filled means the page is
+ * already saved, hollow means it is not. The star path carries no fill of its
+ * own, so this declaration beats the hollow outline it inherits from the svg. */
+.sb-browser > .sb-toolbar > button[aria-pressed="true"] path {
+  fill: currentColor;
+}
 .sb-address {
   min-width: 30px;
   flex: 1;

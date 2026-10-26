@@ -341,9 +341,13 @@ export default class BrowserPlugin extends Plugin {
   removeEntry(kind: "bookmarks" | "history", url: string) {
     this.config[kind] = this.config[kind].filter((entry) => entry.url !== url);
     this.persist();
+    this.refreshPages();
   }
   refreshPages() {
-    for (const view of this.views) view.refreshInternalPages();
+    for (const view of this.views) {
+      view.refreshInternalPages();
+      view.refreshBookmark();
+    }
     for (const root of this.libraryRoots) this.renderLibrary(root);
   }
   addBookmark(input: string, title: string) {
@@ -357,12 +361,14 @@ export default class BrowserPlugin extends Plugin {
     if (!httpURL(url)) return;
     this.config.bookmarks = addHistory(this.config.bookmarks, {
       url,
-      title,
+      // The page title is the bookmark name; never leave an empty label behind.
+      title: String(title || "").trim() || new URL(url).hostname,
       time: Date.now(),
       favicon: storedFavicon(this.config, url),
     });
     this.persist();
     showMessage(this.t("bookmarked"));
+    this.refreshPages();
   }
   refreshDocks() {
     for (const root of this.libraryRoots) this.renderLibrary(root);

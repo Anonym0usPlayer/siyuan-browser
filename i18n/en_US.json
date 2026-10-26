@@ -13,6 +13,7 @@
   "forward": "Forward",
   "reload": "Reload / Stop",
   "bookmark": "Bookmark page",
+  "removeBookmark": "Remove bookmark",
   "more": "More",
   "find": "Find in page",
   "external": "Open in system browser",
