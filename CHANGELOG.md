@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add a userscript manager with metadata review, disabled-by-default installation, per-workspace storage, explicit GM grants, isolated execution, pinned HTTPS dependencies and execution logs. See [supported APIs and limitations](docs/USERSCRIPTS.md).
+
 ## 0.1.4 — 2026-10-31
 
 - Fix webpage context-menu placement by converting embedder coordinates using only the host zoom; let SiYuan fit menus to viewport edges.

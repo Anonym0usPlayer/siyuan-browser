@@ -1,4 +1,5 @@
 import { DocumentIconRefresh } from "./document-icon";
+import { userScriptManager } from "./userscripts/ui";
 import { documentTree, type TreeDestination } from "./document-tree";
 import { bookmarkURL, createBookmarkNote } from "./bookmark-note";
 import { installDockSearch } from "./dock-search";
@@ -775,6 +776,7 @@ export default class BrowserPlugin extends Plugin {
     this.makeSettings();
     super.openSetting();
   }
+  showUserScripts() { userScriptManager(this); }
   makeSettings() {
     this.setting = new Setting({
       confirmCallback: () => {
@@ -792,6 +794,8 @@ export default class BrowserPlugin extends Plugin {
       i.onchange = () => (this.config[key] = i.checked);
       return i;
     };
+    this.setting.addItem({ title: this.t("userScripts"), description: this.t("scriptScope"),
+      actionElement: button(this.t("userScripts"), () => this.showUserScripts()) });
     for (const key of ["takeover", "adblock"] as const)
       this.setting.addItem({
         title: this.t(key),

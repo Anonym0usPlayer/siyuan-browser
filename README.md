@@ -24,6 +24,8 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 - **Enhanced copy**: paste web or reader selections into SiYuan blocks, preserving supported headings, lists, links, code and formulas.
 - **Sessions and filtering**: website cookies use a workspace-specific session isolated from the SiYuan host. Manage filtering subscriptions, temporarily toggle filtering for the current tab, or clear browser data.
 
+**Development feature:** the code after v0.1.4 adds a userscript manager under More → User scripts. See [supported APIs, usage and limitations](docs/USERSCRIPTS.md). This is not included in the v0.1.4 release.
+
 ## Installation
 
 Requires the **SiYuan desktop app 3.8.6 or newer**. The manifest targets macOS, Windows and Linux. The demonstrated workflow was checked on macOS; native Windows/Linux acceptance remains pending. Mobile and browser frontends cannot host the embedded browser. Remote-kernel mode offers a system-browser fallback.

@@ -1068,3 +1068,10 @@
   outline: 2px solid var(--b3-theme-primary);
   outline-offset: -2px;
 }
+
+.sb-userscripts { max-height: 75vh; overflow: auto; }
+.sb-script-source { min-height: 180px; width: 100%; box-sizing: border-box; font-family: monospace; resize: vertical; margin: 8px 0; }
+.sb-script-row { border-bottom: 1px solid var(--b3-border-color); padding: 12px 0; overflow-wrap: anywhere; }
+.sb-script-row .b3-switch { float: right; }
+.sb-script-row button { margin: 6px 6px 0 0; }
+.sb-script-preview, .sb-script-logs { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; }

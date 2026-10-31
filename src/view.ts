@@ -1222,6 +1222,12 @@ export class BrowserView {
     const m = new Menu();
     const add = (label: string, fn: () => void) =>
       m.addItem({ label, click: fn });
+    add(p.t("userScripts"), () => p.showUserScripts());
+    if (this.web && !this.data.archive && httpURL(this.url)) {
+      for (const command of p.adapter.bridge.userScriptCommands(p.adapter.partition, this.web.getWebContentsId()))
+        add(command.label, () => p.guard(async () => p.adapter.bridge.userScriptCommand(
+          p.adapter.partition, this.web.getWebContentsId(), command.token, command.id)));
+    }
     if (httpURL(this.url))
       add(p.t("saveBookmarkNote"), () =>
         p.guard(() => p.saveBookmarkNote(this.url, this.title)),
