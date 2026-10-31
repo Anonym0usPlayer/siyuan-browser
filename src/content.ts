@@ -89,7 +89,8 @@ export function extract(
     }
   }
   return {
-    title: parsed.title || title || "Web page",
+    // Dynamic apps may retain generic Open Graph metadata after document.title changes.
+    title: title.trim() || doc.title.trim() || parsed.title || "Web page",
     url,
     fallback,
     html: DOMPurify.sanitize(body.body.innerHTML, {

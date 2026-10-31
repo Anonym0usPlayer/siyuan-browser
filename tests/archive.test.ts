@@ -29,6 +29,7 @@ test("partial saves retry same document, retain successful resources and snapsho
     const body = JSON.parse(init.body);
     if (url.endsWith("/createDocWithMd")) {
       creates++;
+      assert.equal(body.path, "/Title");
       content = body.markdown;
       return new Response(JSON.stringify({ code: 0, data: "doc-id" }));
     }
@@ -136,7 +137,7 @@ test("database and tags participate in saving; failed database insertion retries
   assert.equal(job.body, "failed");
   assert.equal(job.docId, "doc-id");
   const create = requests.find(([url]) => url.endsWith("createDocWithMd"))[1];
-  assert.match(create.path, /^\/剪藏\/2026\/10\//);
+  assert.equal(create.path, "/剪藏/2026/10/Article");
   assert.equal(create.tags, "A,B");
   await runSave(job, {}, "p", 1, async () => {});
   assert.equal(job.body, "saved");
@@ -154,6 +155,7 @@ test("database item template uses the native template endpoint and never repeats
       attempts++;
       assert.equal(body.templateID, "tpl");
       assert.equal(body.avID, "db");
+      assert.equal(body.title, "Article");
       throw Error("Connection lost after request");
     }
     return new Response(JSON.stringify({ code: 0, data: [] }));

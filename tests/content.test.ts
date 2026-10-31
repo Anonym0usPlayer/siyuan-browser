@@ -62,3 +62,23 @@ test("selection conversion retains short formulas and saved asset paths", async 
   );
   assert.match(md, /\]\(assets\/local.png\)/);
 });
+
+test("dynamic page title wins over generic Feishu metadata when saving", async () => {
+  const { extract } = await import("../src/content");
+  const title =
+    "Make LLM Inference Affordable to Everyone: Utilizing Dynamic Sparsity with PIM-extended Hybrid System (Hermes) - 飞书云文档";
+  const html =
+    "<html><head><title>" +
+    title +
+    '</title><meta property="og:title" content="飞书云文档"></head><body><article><h1>飞书云文档</h1><p>' +
+    "Research content. ".repeat(80) +
+    "</p></article></body></html>";
+  assert.equal(
+    extract(html, "https://example.feishu.cn/docx/test", title).title,
+    title,
+  );
+  assert.equal(
+    extract(html, "https://example.feishu.cn/docx/test", "").title,
+    title,
+  );
+});
