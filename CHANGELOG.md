@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 — 2026-10-31
 
 - Fix webpage context-menu placement by converting embedder coordinates using only the host zoom; let SiYuan fit menus to viewport edges.
 
