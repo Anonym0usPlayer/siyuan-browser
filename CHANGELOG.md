@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3 — 2026-10-31
+
+- Save webpages as bookmark notes in the document tree, with explicit URL attributes and a clickable link when the plugin is disabled.
+- Choose a notebook or parent document in an expandable tree and remember the selected destination.
+- Reuse bookmark browser tabs and refresh document icons from website favicons.
+- Prefer the current page title over generic metadata and remove timestamp suffixes from saved note titles.
+- Prevent embedded webviews from intercepting pointer events during pane resizing.
+
+43 automated tests pass. On macOS SiYuan 3.8.9, plugin reload, the bookmark-note menu, destination dialog and parent selection were checked with native clicks. End-to-end bookmark save/open acceptance remains pending.
+
 ## 0.1.2 — 2026-10-22
 
 - Replace the placeholder plugin icon with a blue globe and bookmark on a white-to-light-gray background, with subtle glass highlights.
