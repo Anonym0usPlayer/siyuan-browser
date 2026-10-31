@@ -57,6 +57,10 @@
   align-self: stretch;
   background: white;
 }
+/* SiYuan shields iframes while resizing panes; Electron webviews need the same guard. */
+.fn__pointer-none .sb-webview {
+  pointer-events: none;
+}
 .sb-webview[hidden],
 .sb-reader[hidden],
 .sb-home[hidden],
@@ -996,7 +1000,9 @@
 .sy__outline.sb-outline-host > :not(.sb-outline):not(.block__icons) {
   display: none !important;
 }
-.sy__outline.sb-outline-host > .block__icons > :not(.block__logo):not([data-type="min"]) {
+.sy__outline.sb-outline-host
+  > .block__icons
+  > :not(.block__logo):not([data-type="min"]) {
   display: none !important;
 }
 .sb-outline {
@@ -1009,4 +1015,56 @@
 }
 .sb-outline [role="group"][hidden] {
   display: none;
+}
+
+.sb-destination-tree {
+  max-height: 320px;
+  min-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 6px;
+  padding: 6px;
+  margin: 8px 0;
+}
+.sb-destination-tree [hidden] {
+  display: none;
+}
+.sb-destination-row {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  min-height: 30px;
+}
+.sb-destination-row:hover {
+  background: var(--b3-list-hover);
+}
+.sb-destination-row[aria-selected="true"] {
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+.sb-tree-toggle,
+.sb-tree-label {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.sb-tree-toggle {
+  flex: 0 0 26px;
+  padding: 5px;
+}
+.sb-tree-label {
+  flex: 1;
+  min-width: 0;
+  padding: 5px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-tree-toggle:focus-visible,
+.sb-tree-label:focus-visible {
+  outline: 2px solid var(--b3-theme-primary);
+  outline-offset: -2px;
 }

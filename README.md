@@ -71,6 +71,12 @@ Open an archive from the save job or its note link. MHTML uses a separate view w
 
 ![A real MHTML archive opened in the plugin](docs/screenshots/archive.png)
 
+### Bookmark notes
+
+Choose **Save as bookmark note** in the webpage menu or a library entry's context menu, then enter a title and select a notebook root or parent document in the expandable document tree. The resulting SiYuan document appears in the file tree and search results. Opening it with the desktop plugin running opens the webpage in a browser tab. Its body retains a clickable URL when the plugin is disabled.
+
+Only documents with `custom-siyuan-browser-kind=bookmark` and a valid `custom-siyuan-browser-url` redirect; the visible tag is for search only. Remove the kind attribute to restore ordinary note behavior. Bookmark notes store URLs, not webpage content or offline snapshots.
+
 ## Common actions
 
 | Action | Location |

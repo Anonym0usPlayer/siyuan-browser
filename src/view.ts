@@ -599,6 +599,12 @@ export class BrowserView {
           if (src && !this.disposed && epoch === this.faviconEpoch) {
             setTabFavicon(custom.tab.headElement, src);
             p.updateFavicon(this.url, url);
+            if (custom.data?.bookmarkDocId)
+              await p.updateBookmarkIcon(
+                custom.data.bookmarkDocId,
+                this.url,
+                url,
+              );
           }
         });
       }
@@ -1215,6 +1221,10 @@ export class BrowserView {
     const m = new Menu();
     const add = (label: string, fn: () => void) =>
       m.addItem({ label, click: fn });
+    if (httpURL(this.url))
+      add(p.t("saveBookmarkNote"), () =>
+        p.guard(() => p.saveBookmarkNote(this.url, this.title)),
+      );
     add(p.t("browserHome"), () => this.navigate(HOME_URL));
     if (p.config.recentlyClosed?.[0])
       add(p.t("reopenClosed"), () =>

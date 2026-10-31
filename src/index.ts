@@ -1,3 +1,6 @@
+import { DocumentIconRefresh } from "./document-icon";
+import { documentTree, type TreeDestination } from "./document-tree";
+import { bookmarkURL, createBookmarkNote } from "./bookmark-note";
 import { installDockSearch } from "./dock-search";
 import { chooseDestination, resolveParentPath } from "./destination";
 import {
@@ -146,6 +149,8 @@ export default class BrowserPlugin extends Plugin {
       this.t("outlineLoading"),
       (fn) => this.guard(fn),
     );
+    this.eventBus.on("loaded-protyle-static", this.openBookmarkNote);
+    this.eventBus.on("switch-protyle", this.openBookmarkNote);
     this.eventBus.on("open-link", this.openLink);
     this.eventBus.on("open-menu-link", this.linkMenu);
     return this.ready;
@@ -194,6 +199,179 @@ export default class BrowserPlugin extends Plugin {
       this.refreshDocks();
     });
   }
+  private documentIcons = new DocumentIconRefresh();
+  private bookmarkTabs = new Map<string, any>();
+  private bookmarkTabPending = new Map<string, Promise<any>>();
+  async openBookmarkTab(id: string, url: string) {
+    const pending = this.bookmarkTabPending.get(id);
+    if (pending) return pending;
+    const existing =
+      this.bookmarkTabs.get(id) ||
+      [...this.views].find(
+        (v) => !v.disposed && v.custom.data?.bookmarkDocId === id,
+      )?.custom.tab;
+    if (existing?.headElement?.isConnected) {
+      existing.parent.switchTab(existing.headElement);
+      return existing;
+    }
+    this.bookmarkTabs.delete(id);
+    const opening = this.open(url, undefined, false, false, id)
+      .then((tab) => {
+        if (tab) this.bookmarkTabs.set(id, tab);
+        return tab;
+      })
+      .finally(() => this.bookmarkTabPending.delete(id));
+    this.bookmarkTabPending.set(id, opening);
+    return opening;
+  }
+  async updateBookmarkIcon(id: string, source: string, favicon: string) {
+    if (!httpURL(favicon)) return;
+    const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+      id,
+    });
+    const target = bookmarkURL(attrs);
+    // Do not change the bookmark's icon after navigating to another site.
+    if (
+      !target ||
+      new URL(target).origin !== new URL(source).origin
+    )
+      return;
+    if (attrs.icon !== favicon)
+      await api("attr/setBlockAttrs", { id, attrs: { icon: favicon } });
+    this.documentIcons.update(id, favicon);
+  }
+  private bookmarkOpening = new WeakSet<object>();
+  openBookmarkNote = (event: CustomEvent) => {
+    const protyle = event.detail?.protyle;
+    const id = protyle?.block?.rootID;
+    const tab = protyle?.model?.parent;
+    // Ignore previews, background editors and duplicate lifecycle notifications.
+    if (
+      !id ||
+      !tab ||
+      !protyle.element?.isConnected ||
+      protyle.element.closest(".fn__none") ||
+      this.bookmarkOpening.has(protyle)
+    )
+      return;
+    this.bookmarkOpening.add(protyle);
+    this.guard(async () => {
+      try {
+        const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+          id,
+        });
+        const url = bookmarkURL(attrs);
+        if (
+          !url ||
+          this.closing ||
+          protyle.block.rootID !== id ||
+          !protyle.element.isConnected ||
+          protyle.element.closest(".fn__none")
+        )
+          return;
+        await this.openBookmarkTab(id, url);
+        if (!this.closing && protyle.block.rootID === id) tab.close();
+      } finally {
+        this.bookmarkOpening.delete(protyle);
+      }
+    });
+  };
+  async saveBookmarkNote(url: string, title: string) {
+    if (!httpURL(url)) return;
+    const live = [...this.views].find(
+      (v) => !v.disposed && v.url === url && v.web,
+    );
+    if (live) {
+      const current = await live.web
+        .executeJavaScript("document.title")
+        .catch(() => "");
+      if (live.url === url && typeof current === "string" && current.trim())
+        title = current.trim();
+    }
+    const { notebooks } = await api("notebook/lsNotebooks", {});
+    let preferred = this.config.bookmarkNotebook || this.config.notebook;
+    let restorePath: string | undefined;
+    if (this.config.bookmarkParentID) {
+      try {
+        const current = await api<{ notebook: string; path: string }>(
+          "filetree/getPathByID",
+          { id: this.config.bookmarkParentID },
+        );
+        preferred = current.notebook;
+        restorePath = current.path;
+      } catch {
+        /* Deleted destinations fall back to the notebook root. */
+      }
+    }
+    const d = dialog(this.t("saveBookmarkNote"));
+    const name = element("input", "b3-text-field");
+    name.value = title || new URL(url).hostname;
+    let destination: TreeDestination | undefined;
+    const preview = element("div", "sb-save-preview");
+    const tree = documentTree(
+      notebooks,
+      preferred,
+      (value) => {
+        destination = value;
+        preview.textContent = this.t("selectedDestination") + value.label;
+      },
+      (key) => this.t(key),
+      restorePath,
+    );
+    const remember = element("input");
+    remember.type = "checkbox";
+    remember.checked = true;
+    const rememberLabel = element("label");
+    rememberLabel.append(
+      remember,
+      document.createTextNode(" " + this.t("rememberSaveLocation")),
+    );
+    const error = element("div", "ft__error");
+    const save = button(this.t("save"), () => {
+      save.disabled = true;
+      void (async () => {
+        try {
+          if (!destination) throw Error(this.t("notebook"));
+          const target = destination;
+          const parent = target.id
+            ? await api<string>("filetree/getHPathByID", { id: target.id })
+            : "/";
+          const favicon =
+            storedFavicon(this.config, url) ||
+            new URL("/favicon.ico", url).href;
+          const savedID = await createBookmarkNote(
+            target.notebook,
+            parent,
+            name.value,
+            url,
+            favicon,
+          );
+          this.documentIcons.update(savedID, favicon);
+          if (remember.checked) {
+            this.config.bookmarkNotebook = target.notebook;
+            this.config.bookmarkParentID = target.id || "";
+            this.persist();
+          }
+          d.dialog.destroy();
+          showMessage(this.t("bookmarkNoteSaved"));
+        } catch (e) {
+          error.textContent = String(e);
+          save.disabled = false;
+        }
+      })();
+    });
+    d.body.append(
+      field(this.t("articleTitle"), name),
+      element("strong", "", this.t("savePath")),
+      tree,
+      preview,
+      rememberLabel,
+      element("p", "ft__on-surface", this.t("bookmarkNoteHint")),
+      error,
+      button(this.t("cancel"), () => d.dialog.destroy()),
+      save,
+    );
+  }
   openLink = (e: CustomEvent) => {
     const href = e.detail?.href;
     if (this.config.takeover && httpURL(href)) {
@@ -225,6 +403,7 @@ export default class BrowserPlugin extends Plugin {
     position?: "right" | "bottom",
     background = false,
     newWindow = false,
+    bookmarkDocId?: string,
   ) {
     await this.ready;
     if (this.closing) return;
@@ -237,6 +416,7 @@ export default class BrowserPlugin extends Plugin {
         data: {
           url: address(url, this.searchTemplate()),
           instanceId: crypto.randomUUID(),
+          ...(bookmarkDocId ? { bookmarkDocId } : {}),
         },
       },
       position,
@@ -396,6 +576,12 @@ export default class BrowserPlugin extends Plugin {
     menu.addItem({
       label: this.t("copyLink"),
       click: () => window.require("electron").clipboard.writeText(entry.url),
+    });
+    menu.addItem({
+      label: this.t("saveBookmarkNote"),
+      icon: "iconSave",
+      click: () =>
+        this.guard(() => this.saveBookmarkNote(entry.url, entry.title)),
     });
     if (section !== "bookmarks")
       menu.addItem({
@@ -910,10 +1096,14 @@ export default class BrowserPlugin extends Plugin {
   }
   async onunload() {
     this.closing = true;
+    this.bookmarkTabs.clear();
+    this.documentIcons.dispose();
     this.outline?.destroy();
     this.favicons.dispose();
     clearTimeout(this.timer);
     for (const j of this.jobs) j.cancelled = true;
+    this.eventBus.off("loaded-protyle-static", this.openBookmarkNote);
+    this.eventBus.off("switch-protyle", this.openBookmarkNote);
     this.eventBus.off("open-link", this.openLink);
     this.eventBus.off("open-menu-link", this.linkMenu);
     for (const v of [...this.views]) v.destroy();

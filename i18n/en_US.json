@@ -182,5 +182,13 @@
   "sidebarTitle": "Browser",
   "collapseSearch": "Collapse search and clear filter",
   "outlineLoading": "Generating page outline…",
-  "outlineEmpty": "No headings found"
+  "outlineEmpty": "No headings found",
+  "saveBookmarkNote": "Save as bookmark note",
+  "bookmarkNoteSaved": "Bookmark note saved",
+  "bookmarkNoteHint": "Select a notebook root or a parent document. Opening the bookmark note opens its webpage.",
+  "expandDocuments": "Expand or collapse documents",
+  "loadingDocuments": "Loading documents…",
+  "noChildDocuments": "No child documents. You can save here.",
+  "selectedDestination": "Save to: ",
+  "rememberSaveLocation": "Remember this save location"
 }

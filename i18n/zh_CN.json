@@ -182,5 +182,13 @@
   "sidebarTitle": "浏览器",
   "collapseSearch": "收起搜索并清除筛选",
   "outlineLoading": "正在生成网页大纲…",
-  "outlineEmpty": "未找到相关内容"
+  "outlineEmpty": "未找到相关内容",
+  "saveBookmarkNote": "保存为书签笔记",
+  "bookmarkNoteSaved": "书签笔记已保存",
+  "bookmarkNoteHint": "选择笔记本保存到根目录，选择文档保存为其子文档。打开书签笔记时直接打开网页。",
+  "expandDocuments": "展开或收起子文档",
+  "loadingDocuments": "正在加载文档…",
+  "noChildDocuments": "没有子文档，可直接保存在此处",
+  "selectedDestination": "保存到：",
+  "rememberSaveLocation": "记住当前保存位置"
 }
