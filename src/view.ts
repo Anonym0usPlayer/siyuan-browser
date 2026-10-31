@@ -1,3 +1,4 @@
+import { contextMenuPosition } from "./context-menu";
 import { enhancedClipboard } from "./copy";
 import { selectedContent, type CopySelection } from "./copy-selection";
 import { addressCandidates, inlineCompletion } from "./omnibox";
@@ -1340,17 +1341,8 @@ export class BrowserView {
         "selectAll",
       );
     });
-    const rect = this.web.getBoundingClientRect();
-    m.open({
-      x: Math.min(
-        innerWidth - 220,
-        (c.hostContext ? 0 : rect.left) + (c.x || 0),
-      ),
-      y: Math.min(
-        innerHeight - 200,
-        (c.hostContext ? 0 : rect.top) + (c.y || 0),
-      ),
-    });
+    // Let SiYuan fit the actual menu size to the viewport at the edges.
+    m.open(contextMenuPosition(c, p.adapter.hostZoom()));
   }
   destroy() {
     this.clearOutline();

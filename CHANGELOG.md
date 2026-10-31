@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix webpage context-menu placement by converting embedder coordinates using only the host zoom; let SiYuan fit menus to viewport edges.
+
 ## 0.1.3 — 2026-10-31
 
 - Save webpages as bookmark notes in the document tree, with explicit URL attributes and a clickable link when the plugin is disabled.
