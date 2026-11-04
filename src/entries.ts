@@ -1,5 +1,5 @@
 import type { Entry, ClosedEntry, HomeSection } from "./core";
-import { element, button, iconButton, dialog, field } from "./ui";
+import { element, button, plainIconButton, dialog, field } from "./ui";
 import type BrowserPlugin from "./index";
 import { entryFaviconURL } from "./favicon";
 
@@ -14,31 +14,31 @@ export function entryTime(time: number) {
     : "";
 }
 
-/** Shared list rows keep home summaries and internal pages visually consistent.
- * They use plugin classes only: borrowing the host's .b3-list-item handed every
- * theme, companion plugin and CSS snippet a say in the row's box and fill. */
+/** One home row: favicon, title over host name, a right-aligned meta cell and a
+ * delete action. The row is rendered inside the page's shadow root, so it uses
+ * plugin classes only and never picks up a theme's list styling. */
 export function entryRow(
   p: BrowserPlugin,
   entry: Entry,
   section: HomeSection,
   navigate: (url: string) => void,
 ) {
-  const row = element("div", "sb-home-row");
-  const link = element("a", "sb-home-link");
+  const row = element("li", "row");
+  const link = element("a", "row-link");
   link.href = entry.url;
   link.title = entry.url;
   const url = new URL(entry.url);
-  const badge = element("span", "sb-home-site");
+  const site = element("span", "site");
   const fallback = element(
     "span",
-    "sb-home-site-letter",
+    "letter",
     url.hostname
       .replace(/^www\./, "")
       .slice(0, 1)
       .toUpperCase(),
   );
-  badge.append(fallback);
-  badge.setAttribute("aria-hidden", "true");
+  site.append(fallback);
+  site.setAttribute("aria-hidden", "true");
   queueMicrotask(() => {
     if (!row.isConnected || row.closest("[hidden]")) return;
     void p.favicons?.get(entryFaviconURL(p.config, entry)).then((src) => {
@@ -55,20 +55,16 @@ export function entryRow(
         image.remove();
         fallback.hidden = false;
       });
-      badge.append(image);
+      site.append(image);
       image.src = src;
     });
   });
-  const text = element("span", "sb-home-entry");
-  text.append(
-    element("span", "sb-home-entry-title", entry.title || entry.url),
-    element(
-      "span",
-      "sb-home-entry-url ft__on-surface",
-      url.host + url.pathname,
-    ),
+  const body = element("span", "body");
+  body.append(
+    element("span", "title", entry.title || entry.url),
+    element("span", "url", url.host + url.pathname),
   );
-  link.append(badge, text);
+  link.append(site, body);
   link.addEventListener("click", (event) => {
     event.preventDefault();
     if (event.ctrlKey || event.metaKey || event.shiftKey) {
@@ -93,22 +89,24 @@ export function entryRow(
       : section === "bookmarks"
         ? ""
         : entryTime(entry.time);
-  // The meta cell is always rendered, even when it has nothing to say: sections
-  // then share one grid, so the link column is the same width everywhere and a
-  // section's rows never look narrower than the next one's.
-  row.append(element("span", "sb-home-meta ft__on-surface", meta));
-  if (section !== "mostVisited")
-    row.append(
-      iconButton(
-        "iconClose",
-        p.t("delete") + " · " + (entry.title || entry.url),
-        () => {
-          if (section === "recentlyClosed")
-            p.removeClosed((entry as ClosedEntry).id);
-          else p.removeEntry(section, entry.url);
-        },
-      ),
-    );
+  // The meta cell is always rendered: sections then share one grid, so the dates
+  // and the visit counts close on the same line in every section.
+  row.append(element("span", "meta", meta));
+  // An empty slot keeps the meta cell at the same x whether the row has an action
+  // or not, so hovering never shifts a column sideways.
+  row.append(
+    section === "mostVisited"
+      ? element("span", "slot")
+      : plainIconButton(
+          "iconClose",
+          p.t("delete") + " · " + (entry.title || entry.url),
+          () => {
+            if (section === "recentlyClosed")
+              p.removeClosed((entry as ClosedEntry).id);
+            else p.removeEntry(section, entry.url);
+          },
+        ),
+  );
   return row;
 }
 

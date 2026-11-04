@@ -174,13 +174,11 @@ test("shared homepage and library rows display icons after decoding and retain i
       document.body.append(entryRow(p, config.history[0], kind, () => {}));
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(requests, 1);
-    const badges = [...document.querySelectorAll(".sb-home-site")];
+    const badges = [...document.querySelectorAll(".row .site")];
     assert.equal(badges.length, 4);
     for (const badge of badges) {
       const image = badge.querySelector("img")!;
-      const fallback = badge.querySelector<HTMLElement>(
-        ".sb-home-site-letter",
-      )!;
+      const fallback = badge.querySelector<HTMLElement>(".letter")!;
       assert.equal(image.src, "data:image/png;base64,aWNvbg==");
       assert.equal(fallback.textContent, "S");
       image.dispatchEvent(new dom.window.Event("load"));
@@ -189,7 +187,7 @@ test("shared homepage and library rows display icons after decoding and retain i
       assert.equal(fallback.hidden, false);
       assert.equal(badge.querySelector("img"), null);
     }
-    assert.equal(document.querySelector(".sb-home-entry-title img"), null);
+    assert.equal(document.querySelector(".row .title img"), null);
     const hidden = document.createElement("section");
     hidden.hidden = true;
     hidden.append(

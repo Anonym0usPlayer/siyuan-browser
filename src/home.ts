@@ -5,8 +5,9 @@ import {
   type Entry,
   type HomeSection,
 } from "./core";
-import { element, button, icon, iconButton } from "./ui";
+import { element, icon, plainIconButton, syncIconSprite } from "./ui";
 import { entryRow, addBookmarkDialog } from "./entries";
+import { homeStyle } from "./home-style";
 import type BrowserPlugin from "./index";
 
 const sectionIcons: Record<HomeSection, string> = {
@@ -18,14 +19,14 @@ const sectionIcons: Record<HomeSection, string> = {
 
 /** Shared by the homepage and plugin settings; hidden sections stay sortable. */
 export function homeLayoutControls(plugin: BrowserPlugin) {
-  const root = element("div", "sb-home-layout b3-list");
+  const root = element("div", "sb-home-layout");
   let dragging: HomeSection | undefined;
   const current = () => readHomeLayout(plugin.config.homeLayout);
   const render = (focus?: string) => {
     root.replaceChildren();
     const layout = readHomeLayout(plugin.config.homeLayout);
     for (const [index, section] of layout.order.entries()) {
-      const row = element("div", "b3-list-item sb-home-layout-row");
+      const row = element("div", "sb-home-layout-row");
       row.dataset.section = section;
       const handle = element("span", "sb-home-drag");
       handle.append(icon("iconDrag"));
@@ -61,7 +62,7 @@ export function homeLayoutControls(plugin: BrowserPlugin) {
         dragging = undefined;
       });
       const label = element("label", "sb-home-toggle");
-      const toggle = element("input", "b3-switch");
+      const toggle = element("input");
       toggle.type = "checkbox";
       toggle.checked = !layout.hidden.includes(section);
       toggle.dataset.control = section + "-toggle";
@@ -85,21 +86,17 @@ export function homeLayoutControls(plugin: BrowserPlugin) {
         [1, "iconDown", "moveDown"],
       ] as const) {
         const control = section + "-" + text;
-        const move = iconButton(
-          name,
-          plugin.t(text) + " · " + plugin.t(section),
-          () => {
-            const latest = current();
-            commit(
-              moveHomeSection(
-                latest,
-                section,
-                latest.order[latest.order.indexOf(section) + step],
-              ),
-              control,
-            );
-          },
-        );
+        const move = plainIconButton(name, plugin.t(text) + " · " + plugin.t(section), () => {
+          const latest = current();
+          commit(
+            moveHomeSection(
+              latest,
+              section,
+              latest.order[latest.order.indexOf(section) + step],
+            ),
+            control,
+          );
+        });
         move.dataset.control = control;
         move.disabled = index + step < 0 || index + step >= layout.order.length;
         row.append(move);
@@ -113,53 +110,80 @@ export function homeLayoutControls(plugin: BrowserPlugin) {
   return root;
 }
 
+/** The home page renders inside a shadow root. The host's themes and companion
+ * plugins style the SiYuan UI, and this page is not part of it: nothing outside
+ * the component can reach the rows, so the layout belongs to the plugin alone. */
 export class HomePage {
   root = element("section", "sb-home");
-  sections = element("div", "sb-home-sections");
-  search = element("input", "b3-text-field sb-home-search-input");
+  shadow: ShadowRoot;
+  page = element("div", "page");
+  sections = element("div", "sections");
+  search = element("input");
   expanded = new Set<HomeSection>();
   constructor(
     public plugin: BrowserPlugin,
     public navigate: (url: string) => void,
   ) {
-    const header = element("header", "sb-home-header");
-    const heading = element("div", "sb-home-heading");
+    this.shadow = this.root.attachShadow({ mode: "open" });
+    const style = document.createElement("style");
+    style.textContent = homeStyle;
+    this.shadow.append(style, this.page);
+    syncIconSprite(this.shadow);
+    const inner = element("div", "page-inner");
+    this.page.append(inner);
+
+    const header = element("header", "head");
+    const heading = element("div", "");
     heading.append(
       element("h1", "", plugin.t("browserHome")),
-      element("p", "ft__on-surface", plugin.t("homeIntro")),
+      element("p", "", plugin.t("homeIntro")),
     );
-    const customize = element("details", "sb-home-customize");
-    const summary = element("summary", "b3-button b3-button--outline");
+    const customize = element("details", "customize");
+    const summary = element("summary");
     summary.append(
       icon("iconSettings"),
       document.createTextNode(plugin.t("customizeHome")),
     );
-    customize.append(summary);
-    customize.addEventListener("toggle", () => {
-      if (!customize.open) return;
-      customize.querySelector(".sb-home-customize-panel")?.remove();
-      const panel = element("div", "sb-home-customize-panel");
-      panel.append(
-        element("p", "ft__on-surface", plugin.t("homeLayoutHint")),
-        homeLayoutControls(plugin),
-      );
-      customize.append(panel);
-    });
+    const panel = element("div", "panel");
+    panel.append(
+      element("p", "", plugin.t("homeLayoutHint")),
+      homeLayoutControls(plugin),
+    );
+    // <details> hides the panel on its own, so the controls are built once and
+    // rebuilt nowhere; every commit inside them re-renders their own rows.
+    customize.append(summary, panel);
+    const dismiss = (event: PointerEvent) => {
+      if (!this.root.isConnected) {
+        document.removeEventListener("pointerdown", dismiss, true);
+        return;
+      }
+      if (customize.open && !event.composedPath().includes(customize))
+        customize.open = false;
+    };
+    document.addEventListener("pointerdown", dismiss, true);
     header.append(heading, customize);
-    const form = element("form", "sb-home-search");
+
+    const form = element("form", "search");
+    const field = element("label", "field");
     this.search.placeholder = plugin.t("address");
     this.search.setAttribute("aria-label", plugin.t("address"));
-    const searchButton = button(plugin.t("search"), () => form.requestSubmit());
-    form.append(icon("iconSearch"), this.search, searchButton);
+    field.append(icon("iconSearch"), this.search);
+    const searchButton = element("button", "", plugin.t("search"));
+    searchButton.type = "submit";
+    form.append(field, searchButton);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       if (this.search.value.trim()) this.navigate(this.search.value);
     });
-    this.root.append(header, form, this.sections);
+
+    inner.append(header, form, this.sections);
     this.refresh();
   }
   refresh() {
     const p = this.plugin;
+    // Icons are cloned from the host's sprite, which may not have been parsed
+    // when the page was built, so top it up on every rebuild.
+    syncIconSprite(this.shadow);
     this.sections.replaceChildren();
     const layout = readHomeLayout(p.config.homeLayout);
     for (const section of layout.order.filter(
@@ -169,29 +193,28 @@ export class HomePage {
         section === "mostVisited"
           ? mostVisited(p.config.history)
           : p.config[section] || [];
-      const block = element("section", "sb-home-section");
+      const block = element("section", "section");
       block.dataset.section = section;
-      const header = element("div", "sb-home-section-header");
-      const title = element("h2", "");
+      const head = element("div", "section-head");
+      const title = element("h2");
       title.append(
         icon(sectionIcons[section]),
         document.createTextNode(p.t(section)),
-        element("span", "sb-home-count", String(entries.length)),
+        element("span", "count", String(entries.length)),
       );
-      header.append(title);
-      const actions = element("div", "sb-home-section-actions");
+      const actions = element("div", "actions");
       if (section === "bookmarks")
         actions.append(
-          iconButton("iconAdd", p.t("addBookmark"), () => this.addBookmark()),
+          plainIconButton("iconAdd", p.t("addBookmark"), () =>
+            this.addBookmark(),
+          ),
         );
-      header.append(actions);
-      block.append(header);
+      head.append(title, actions);
+      block.append(head);
       if (!entries.length) {
-        block.append(
-          element("p", "sb-home-empty ft__on-surface", p.t(section + "Empty")),
-        );
+        block.append(element("p", "empty", p.t(section + "Empty")));
       } else {
-        const list = element("div", "sb-home-list");
+        const list = element("ul", "list");
         const limit = this.expanded.has(section)
           ? entries.length
           : section === "bookmarks" || section === "history"
@@ -201,24 +224,24 @@ export class HomePage {
           list.append(entryRow(p, entry, section, this.navigate));
         block.append(list);
         if (entries.length > limit || this.expanded.has(section)) {
-          const more = button(
+          const more = element(
+            "button",
+            "more",
             p.t(this.expanded.has(section) ? "showLess" : "showAll"),
-            () => {
-              if (this.expanded.has(section)) this.expanded.delete(section);
-              else this.expanded.add(section);
-              this.refresh();
-            },
           );
-          more.classList.add("sb-home-more");
+          more.type = "button";
+          more.addEventListener("click", () => {
+            if (this.expanded.has(section)) this.expanded.delete(section);
+            else this.expanded.add(section);
+            this.refresh();
+          });
           block.append(more);
         }
       }
       this.sections.append(block);
     }
     if (!this.sections.children.length)
-      this.sections.append(
-        element("p", "sb-home-empty ft__on-surface", p.t("homeAllHidden")),
-      );
+      this.sections.append(element("p", "empty", p.t("homeAllHidden")));
   }
   addBookmark() {
     addBookmarkDialog(this.plugin);

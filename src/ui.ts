@@ -65,6 +65,53 @@ export function iconButton(name: string, title: string, fn: () => void) {
   b.append(icon(name));
   return b;
 }
+/** Icon button without host classes, for content that renders inside the home
+ * page's shadow root, where the host stylesheet cannot reach. */
+export function plainIconButton(name: string, title: string, fn: () => void) {
+  const b = element("button", "icon-button");
+  b.type = "button";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.append(icon(name));
+  b.addEventListener("click", (event) => {
+    event.stopPropagation();
+    fn();
+  });
+  return b;
+}
+/** `<use href="#id">` only resolves inside its own tree, so the symbols the home
+ * page draws are copied into the shadow root. Cloning the host's symbols keeps
+ * whatever icon pack the user picked. */
+const spriteIds = [
+  "iconSettings",
+  "iconSearch",
+  "iconAdd",
+  "iconClose",
+  "iconDrag",
+  "iconUp",
+  "iconDown",
+  "iconRefresh",
+  "iconStar",
+  "iconBookmark",
+  "iconHistory",
+];
+export function syncIconSprite(shadow: ShadowRoot) {
+  let sprite = shadow.querySelector<SVGSVGElement>("svg[data-icon-sprite]");
+  if (!sprite) {
+    sprite = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    sprite.setAttribute("data-icon-sprite", "");
+    sprite.setAttribute("aria-hidden", "true");
+    sprite.style.cssText =
+      "position:absolute;width:0;height:0;overflow:hidden";
+    shadow.prepend(sprite);
+  }
+  for (const id of spriteIds) {
+    if (!sprite.querySelector("#" + id)) {
+      const source = document.getElementById(id);
+      if (source) sprite.append(source.cloneNode(true));
+    }
+  }
+}
 export function dialog(
   title: string,
   onClose?: () => void,
