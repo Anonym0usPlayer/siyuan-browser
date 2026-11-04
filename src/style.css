@@ -399,18 +399,18 @@
  * a say in their margin, padding, radius and fill; rows now use plugin-only
  * classes and declare the whole box themselves.
  *
- * The row is a fixed grid: the link fills the row, and the visit count, the
- * timestamp and the delete button are pinned to the right by absolute
- * positioning. Nothing in the row is sized by its text any more, so all four
- * sections paint the exact same band, whether a row carries a visit count, a
- * timestamp or neither. */
+ * The row is a fixed grid: the link fills the row, and the delete button and the
+ * meta cell are pinned to the right by absolute positioning. Nothing in the row
+ * is sized by its text any more, so all four sections paint the exact same band
+ * whether a row carries a visit count, a timestamp or neither, and the meta cell
+ * ends on the row's right edge in every section. */
 .sb-home-list {
   padding: 0;
 }
 .sb-home .sb-home-row {
-  --sb-home-action-gutter: 28px;
+  --sb-home-action-slot: 24px;
   --sb-home-meta-width: 64px;
-  --sb-home-meta-gap: 8px;
+  --sb-home-cell-gap: 8px;
   position: relative;
   display: flex;
   align-items: center;
@@ -445,7 +445,10 @@
    * inside this right padding, so the band a theme paints stays a full row wide
    * and the title never runs under either of them. */
   padding: 8px
-    calc(var(--sb-home-action-gutter) + var(--sb-home-meta-width) + var(--sb-home-meta-gap))
+    calc(
+      var(--sb-home-action-slot) + var(--sb-home-meta-width) +
+        var(--sb-home-cell-gap) * 2
+    )
     8px 0;
   color: inherit;
   text-decoration: none;
@@ -486,13 +489,14 @@
 .sb-home-meta {
   font-size: 11px;
 }
-/* The meta cell is pinned, not laid out: a fixed width means the visit count and
- * the timestamp always start at the same x, and a row with nothing to show there
- * keeps the same geometry instead of stretching its link. */
+/* The meta cell is pinned, not laid out. It ends on the row's right edge, so the
+ * timestamps of every section close on the same line, and a fixed width means
+ * the visit count starts at the same x as a date would. A row with nothing to
+ * show there keeps the geometry instead of stretching its link. */
 .sb-home-meta {
   position: absolute;
   top: 50%;
-  right: var(--sb-home-action-gutter);
+  right: 0;
   transform: translateY(-50%);
   width: var(--sb-home-meta-width);
   text-align: right;
@@ -522,12 +526,13 @@
 .sb-home-layout-row > button:disabled {
   opacity: 0.35;
 }
-/* The delete button lives in the reserved gutter instead of the text flow, so
- * revealing it on hover never reflows the title or the meta column. */
+/* The delete button lives in its own slot left of the meta cell instead of the
+ * text flow: the timestamp keeps the right edge, and revealing the button on
+ * hover never reflows the title or covers the date. */
 .sb-home-row > button {
   position: absolute;
   top: 50%;
-  right: 0;
+  right: calc(var(--sb-home-meta-width) + var(--sb-home-cell-gap));
   transform: translateY(-50%);
   opacity: 0;
 }
