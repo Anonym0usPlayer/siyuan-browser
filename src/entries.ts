@@ -93,7 +93,10 @@ export function entryRow(
       : section === "bookmarks"
         ? ""
         : entryTime(entry.time);
-  if (meta) row.append(element("span", "sb-home-meta ft__on-surface", meta));
+  // The meta cell is always rendered, even when it has nothing to say: sections
+  // then share one grid, so the link column is the same width everywhere and a
+  // section's rows never look narrower than the next one's.
+  row.append(element("span", "sb-home-meta ft__on-surface", meta));
   if (section !== "mostVisited")
     row.append(
       iconButton(
