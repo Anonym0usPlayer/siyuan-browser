@@ -89,24 +89,24 @@ export function entryRow(
       : section === "bookmarks"
         ? ""
         : entryTime(entry.time);
-  // The meta cell is always rendered: sections then share one grid, so the dates
-  // and the visit counts close on the same line in every section.
+  // The meta cell is always rendered and ends on the row's right edge: sections
+  // then share one column edge, so the dates and the visit counts close on the
+  // same line in every section.
   row.append(element("span", "meta", meta));
-  // An empty slot keeps the meta cell at the same x whether the row has an action
-  // or not, so hovering never shifts a column sideways.
-  row.append(
-    section === "mostVisited"
-      ? element("span", "slot")
-      : plainIconButton(
-          "iconClose",
-          p.t("delete") + " · " + (entry.title || entry.url),
-          () => {
-            if (section === "recentlyClosed")
-              p.removeClosed((entry as ClosedEntry).id);
-            else p.removeEntry(section, entry.url);
-          },
-        ),
-  );
+  // The delete button floats in the row's trailing gutter instead of taking a
+  // cell of its own, so hovering never shifts the timestamp sideways.
+  if (section !== "mostVisited")
+    row.append(
+      plainIconButton(
+        "iconClose",
+        p.t("delete") + " · " + (entry.title || entry.url),
+        () => {
+          if (section === "recentlyClosed")
+            p.removeClosed((entry as ClosedEntry).id);
+          else p.removeEntry(section, entry.url);
+        },
+      ),
+    );
   return row;
 }
 

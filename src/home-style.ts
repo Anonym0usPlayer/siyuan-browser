@@ -176,10 +176,13 @@ svg { display: block; }
 /* ---------- rows ---------- */
 .list { margin: 0; padding: 0; list-style: none; }
 .row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 6px 4px 4px;
+  /* No trailing padding: the timestamp closes on the column's right edge, the
+   * same edge as the section heading and its action button. */
+  padding: 4px 0 4px 4px;
   border-radius: 7px;
 }
 .row:hover { background-color: rgba(127, 127, 127, 0.09); }
@@ -189,7 +192,9 @@ svg { display: block; }
   flex: 1;
   min-width: 0;
   gap: 10px;
-  padding: 2px 0;
+  /* Room for the delete button, which floats in this gutter: the title never
+   * runs underneath it, and revealing the button moves nothing. */
+  padding: 2px 38px 2px 0;
   color: inherit;
   text-decoration: none;
 }
@@ -216,15 +221,25 @@ svg { display: block; }
 }
 .title { font-size: 13px; line-height: 1.45; }
 .url { font-size: 11px; line-height: 1.4; color: var(--b3-theme-on-surface); }
+/* A fixed, monospaced cell: every row ends its date on the same line no matter
+ * how many 1s and 7s it happens to contain. */
 .meta {
   flex: 0 0 auto;
-  min-width: 62px;
+  width: 72px;
   text-align: right;
-  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--b3-theme-on-surface);
   font-variant-numeric: tabular-nums;
 }
-.slot { flex: 0 0 auto; width: 26px; height: 26px; }
+.row > .icon-button {
+  position: absolute;
+  top: 50%;
+  right: 82px;
+  transform: translateY(-50%);
+}
 .row .icon-button { opacity: 0; }
 .row:hover .icon-button, .row:focus-within .icon-button { opacity: 1; }
 
