@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.5 — 2026-11-04
 
 - Render the home page inside its own shadow root. Rows, lists and section headings used to be host-classed nodes styled from the plugin sheet, so any theme, companion plugin or CSS snippet could repaint a row's fill, margin and radius — and out-specifying them only moved the problem to whoever was injected last. The page now ships its own stylesheet and clones the host's icon sprite into the root, so nothing outside it can reach a row; the same markup renders identically under Daylight, Neo or a hostile `!important` override. Rows and the layout controls drop the borrowed `b3-list` / `b3-list-item` classes, which also removes the host's `margin: 1px 8px` + `padding: 0 4px` that shrank each section's list by a different amount and painted a block behind every row.
 - Rebuild the home page layout: sections flow in two columns and fall back to one under 760 px, the title, description and a "customize" popover share one header instead of a permanent settings panel, and rows are compact 26 px lines with the favicon in a rounded badge over a title-and-host-name stack. Every row ends in the same fixed 72 px monospaced cell, so dates and visit counts start and end on the same x in all four sections instead of drifting with the width of their own digits; the delete button floats at the row's far right, past that cell, so a row without an action and a row with one leave the timestamp in the same place and revealing the button reflows nothing.
