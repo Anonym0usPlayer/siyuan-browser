@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Flatten the home page link lists. Rows were `.b3-list-item`s, so the host's own `margin: 1px 8px`, `padding: 0 4px` and theme fills shrank every section's list by a different amount and painted a block behind each row; rows now start flush with their section heading, share the column width, and stay transparent when hovered or focused. The trailing action gutter is reserved on every row, so the visit count and timestamp columns line up across sections and revealing a delete button no longer reflows the title.
+
 ## 0.1.4 — 2026-10-26
 
 - Make the toolbar star a real bookmark toggle: it is filled when the current page is already saved and hollow when it is not, and a press adds or removes that bookmark instead of only adding. The state also clears when the bookmark is deleted from the home page or the sidebar, and survives back/forward navigation.

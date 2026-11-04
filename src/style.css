@@ -394,11 +394,37 @@
   font-weight: 400;
   color: var(--b3-theme-on-surface);
 }
-.sb-home-row {
+/* Home rows are plain list lines. The host paints every .b3-list-item as a
+ * rounded block with an 8px inset margin, a 4px inner padding and a hover fill,
+ * so each section's list sat a little narrower and filled than the next; rows
+ * now run edge to edge with the section heading and stay transparent in every
+ * state. The trailing gutter is reserved on all rows so the meta column lines
+ * up across sections and nothing shifts when a delete button appears. */
+.sb-home .sb-home-list {
+  padding: 0;
+}
+.sb-home .sb-home-list .sb-home-row {
+  --sb-home-action-gutter: 28px;
+  position: relative;
   display: flex;
-  min-width: 0;
+  align-items: center;
   gap: 8px;
-  padding: 0 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 var(--sb-home-action-gutter) 0 0;
+  border: 0;
+  border-radius: 0;
+  /* Themes style .b3-list-item themselves, so the flat look has to win outright. */
+  background: transparent !important;
+  box-shadow: none;
+}
+.sb-home .sb-home-list .sb-home-row:hover,
+.sb-home .sb-home-list .sb-home-row:focus-within,
+.sb-home .sb-home-list .sb-home-row.b3-list-item--focus {
+  background: transparent !important;
 }
 .sb-home-link {
   display: flex;
@@ -472,22 +498,34 @@
 .sb-home-layout-row > button:disabled {
   opacity: 0.35;
 }
+/* The delete button lives in the reserved gutter instead of the text flow, so
+ * revealing it on hover never reflows the title or the meta column. */
 .sb-home-row > button {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
   opacity: 0;
 }
 .sb-home-row:hover > button,
 .sb-home-row:focus-within > button {
   opacity: 1;
 }
+/* With no fill behind a row, the title is the only thing that can react. */
+.sb-home-row:hover .sb-home-entry-title {
+  text-decoration: underline;
+}
 .sb-home-empty {
-  padding: 20px 8px;
+  padding: 16px 0;
   margin: 0;
   font-size: 13px;
   line-height: 1.7;
 }
 .sb-home-more {
+  display: block;
   border: 0;
   margin: 8px 0 0;
+  padding: 4px 0;
   font-size: 12px;
 }
 .sb-home-layout {
