@@ -394,16 +394,16 @@
   font-weight: 400;
   color: var(--b3-theme-on-surface);
 }
-/* Home rows are plain list lines. The host paints every .b3-list-item as a
- * rounded block with an 8px inset margin, a 4px inner padding and a hover fill,
- * so each section's list sat a little narrower and filled than the next; rows
- * now run edge to edge with the section heading and stay transparent in every
- * state. The trailing gutter is reserved on all rows so the meta column lines
- * up across sections and nothing shifts when a delete button appears. */
-.sb-home .sb-home-list {
+/* Home rows belong to the plugin, not to the host. They used to carry the host's
+ * .b3-list-item hook, which handed every theme, companion plugin and CSS snippet
+ * a say in their margin, padding, radius and fill; rows now use plugin-only
+ * classes and declare the whole box themselves. The trailing gutter is reserved
+ * on all rows so the meta column lines up across sections and nothing shifts
+ * when a delete button appears. */
+.sb-home-list {
   padding: 0;
 }
-.sb-home .sb-home-list .sb-home-row {
+.sb-home .sb-home-row {
   --sb-home-action-gutter: 28px;
   position: relative;
   display: flex;
@@ -417,14 +417,12 @@
   padding: 0 var(--sb-home-action-gutter) 0 0;
   border: 0;
   border-radius: 0;
-  /* Themes style .b3-list-item themselves, so the flat look has to win outright. */
-  background: transparent !important;
+  background: transparent;
   box-shadow: none;
 }
-.sb-home .sb-home-list .sb-home-row:hover,
-.sb-home .sb-home-list .sb-home-row:focus-within,
-.sb-home .sb-home-list .sb-home-row.b3-list-item--focus {
-  background: transparent !important;
+.sb-home .sb-home-row:hover,
+.sb-home .sb-home-row:focus-within {
+  background: transparent;
 }
 .sb-home-link {
   display: flex;

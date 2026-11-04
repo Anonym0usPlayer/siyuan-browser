@@ -14,14 +14,16 @@ export function entryTime(time: number) {
     : "";
 }
 
-/** Shared list rows keep home summaries and internal pages visually consistent. */
+/** Shared list rows keep home summaries and internal pages visually consistent.
+ * They use plugin classes only: borrowing the host's .b3-list-item handed every
+ * theme, companion plugin and CSS snippet a say in the row's box and fill. */
 export function entryRow(
   p: BrowserPlugin,
   entry: Entry,
   section: HomeSection,
   navigate: (url: string) => void,
 ) {
-  const row = element("div", "b3-list-item sb-home-row");
+  const row = element("div", "sb-home-row");
   const link = element("a", "sb-home-link");
   link.href = entry.url;
   link.title = entry.url;

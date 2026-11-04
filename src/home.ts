@@ -191,7 +191,7 @@ export class HomePage {
           element("p", "sb-home-empty ft__on-surface", p.t(section + "Empty")),
         );
       } else {
-        const list = element("div", "b3-list sb-home-list");
+        const list = element("div", "sb-home-list");
         const limit = this.expanded.has(section)
           ? entries.length
           : section === "bookmarks" || section === "history"
