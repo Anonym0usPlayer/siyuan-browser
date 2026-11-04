@@ -180,9 +180,9 @@ svg { display: block; }
   display: flex;
   align-items: center;
   gap: 10px;
-  /* No trailing padding: the timestamp closes on the column's right edge, the
-   * same edge as the section heading and its action button. */
-  padding: 4px 0 4px 4px;
+  /* The trailing padding is the delete button's home: it floats there, so a row
+   * without an action and a row with one put the timestamp in the same place. */
+  padding: 4px 32px 4px 4px;
   border-radius: 7px;
 }
 .row:hover { background-color: rgba(127, 127, 127, 0.09); }
@@ -192,9 +192,7 @@ svg { display: block; }
   flex: 1;
   min-width: 0;
   gap: 10px;
-  /* Room for the delete button, which floats in this gutter: the title never
-   * runs underneath it, and revealing the button moves nothing. */
-  padding: 2px 38px 2px 0;
+  padding: 2px 0;
   color: inherit;
   text-decoration: none;
 }
@@ -237,7 +235,7 @@ svg { display: block; }
 .row > .icon-button {
   position: absolute;
   top: 50%;
-  right: 82px;
+  right: 0;
   transform: translateY(-50%);
 }
 .row .icon-button { opacity: 0; }
