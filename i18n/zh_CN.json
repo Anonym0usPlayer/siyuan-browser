@@ -101,7 +101,7 @@
   "addBookmark": "添加书签",
   "bookmarkTitle": "标题",
   "bookmarkURL": "网址",
-  "editBookmark": "编辑标题",
+  "editBookmark": "编辑书签",
   "saveBookmarkTitle": "保存",
   "invalidBookmarkURL": "请输入有效的 HTTP(S) 网址或域名。",
   "useBuiltInHome": "使用内置主页",

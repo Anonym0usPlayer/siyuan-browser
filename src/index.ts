@@ -343,16 +343,50 @@ export default class BrowserPlugin extends Plugin {
     this.persist();
     this.refreshPages();
   }
-  /** Rename a saved bookmark. The URL is the identity, so the label can change
-   * without touching the order, the visit count or the stored favicon; an empty
-   * name is refused rather than leaving a nameless row behind. */
-  renameBookmark(url: string, title: string) {
-    const name = title.trim();
+  /** Rewrite a saved bookmark in place: the label and the target may both change.
+   * The old URL is the bookmark's identity, so a failed edit (blank label, bad
+   * address, address already saved) leaves the config untouched rather than
+   * losing the bookmark, and a good one keeps its position in the list. */
+  editBookmark(
+    url: string,
+    next: { title: string; url: string },
+  ): "saved" | "missing" | "empty-title" | "invalid-url" | "duplicate" {
     const entry = this.config.bookmarks.find((item) => item.url === url);
-    if (!name || !entry || entry.title === name) return;
+    if (!entry) return "missing";
+    const name = next.title.trim();
+    if (!name) return "empty-title";
+    let target = url;
+    const typed = next.url.trim();
+    if (typed !== url) {
+      try {
+        target = this.bookmarkTarget(typed);
+      } catch {
+        return "invalid-url";
+      }
+      if (
+        target !== url &&
+        this.config.bookmarks.some((item) => item.url === target)
+      )
+        return "duplicate";
+    }
+    if (entry.title === name && target === url) return "saved";
+    // Resolve the icon before the URL moves: the entry itself would otherwise
+    // answer the lookup with the icon of the page it is leaving.
+    const favicon = target === url ? undefined : storedFavicon(this.config, target);
     entry.title = name;
+    if (target !== url) {
+      entry.url = target;
+      if (favicon) entry.favicon = favicon;
+      else delete entry.favicon;
+    }
     this.persist();
     this.refreshPages();
+    return "saved";
+  }
+  /** Surface a short status message in the host UI; the pages themselves run
+   * inside webviews and shadow roots and cannot reach the host toast. */
+  notify(message: string) {
+    showMessage(message);
   }
   refreshPages() {
     for (const view of this.views) {
@@ -361,11 +395,17 @@ export default class BrowserPlugin extends Plugin {
     }
     for (const root of this.libraryRoots) this.renderLibrary(root);
   }
-  addBookmark(input: string, title: string) {
+  /** Turn what someone typed into a bookmark target, or throw: a search phrase
+   * is not a bookmark, and neither is a non-web scheme. */
+  private bookmarkTarget(input: string) {
     const raw = input.trim();
     const url = address(raw, this.searchTemplate());
     if (!httpURL(url) || (!httpURL(raw) && url !== "https://" + raw))
       throw Error("Invalid bookmark URL");
+    return url;
+  }
+  addBookmark(input: string, title: string) {
+    const url = this.bookmarkTarget(input);
     this.bookmark(url, title.trim() || new URL(url).hostname);
   }
   bookmark(url: string, title: string) {

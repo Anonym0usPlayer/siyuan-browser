@@ -478,6 +478,27 @@ test("homepage navigation, close/reopen and section changes integrate with brows
       HTMLInputElement
     >(".title-edit")!;
     assert.equal(editor.value, "Old name");
+    // A click inside the editor still has the anchor above it, and an anchor's
+    // activation behaviour ignores stopPropagation: the row must cancel the
+    // default itself, or clicking to place the caret opens the page.
+    const inEditor = new dom.window.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    editor.dispatchEvent(inEditor);
+    assert.equal(inEditor.defaultPrevented, true);
+    const onRow = new dom.window.MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    renameRow("https://rename.example/")
+      .querySelector("a")!
+      .dispatchEvent(onRow);
+    assert.equal(onRow.defaultPrevented, true);
+    assert.equal(v.url, HOME_URL, "the row does not navigate while editing");
+    editor = renameRow("https://rename.example/").querySelector<
+      HTMLInputElement
+    >(".title-edit")!;
     editor.value = "New name";
     editor.dispatchEvent(
       new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
@@ -497,9 +518,57 @@ test("homepage navigation, close/reopen and section changes integrate with brows
       new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     assert.equal(bookmarkTitle("https://rename.example/"), "New name");
-    p.renameBookmark("https://rename.example/", "   ");
+    assert.equal(
+      p.editBookmark("https://rename.example/", {
+        title: "   ",
+        url: "https://rename.example/",
+      }),
+      "empty-title",
+    );
     assert.equal(bookmarkTitle("https://rename.example/"), "New name");
-    // Only bookmarks carry the rename button; history rows keep the delete one.
+    // The address is editable too: the bookmark moves to the new target, keeps
+    // its label, and an unusable or already-saved address is refused without
+    // touching the entry.
+    renameButton(renameRow("https://rename.example/")).click();
+    const movedRow = renameRow("https://rename.example/");
+    const movedURL = movedRow.querySelector<HTMLInputElement>(".url-edit")!;
+    assert.equal(movedURL.value, "https://rename.example/");
+    movedRow.querySelector<HTMLInputElement>(".title-edit")!.value = "Moved";
+    movedURL.value = "moved.example/path";
+    movedURL.dispatchEvent(
+      new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    assert.equal(
+      p.config.bookmarks.find(
+        (item: any) => item.url === "https://moved.example/path",
+      )?.title,
+      "Moved",
+      "a bare host gains https and the label follows",
+    );
+    assert.equal(
+      renameRow("https://moved.example/path").querySelector(".url")
+        ?.textContent,
+      "moved.example/path",
+    );
+    const existing = p.config.bookmarks.find((item: any) =>
+      item.url.includes("added.example"),
+    ).url;
+    assert.equal(
+      p.editBookmark("https://moved.example/path", {
+        title: "Dup",
+        url: existing,
+      }),
+      "duplicate",
+    );
+    assert.equal(
+      p.editBookmark("https://moved.example/path", {
+        title: "Bad",
+        url: "javascript:alert(1)",
+      }),
+      "invalid-url",
+    );
+    assert.equal(bookmarkTitle("https://moved.example/path"), "Moved");
+    // Only bookmarks carry the edit button; history rows keep the delete one.
     assert.equal(
       v.homePage.sections.querySelector(
         '[data-section="history"] [aria-label^="editBookmark"]',

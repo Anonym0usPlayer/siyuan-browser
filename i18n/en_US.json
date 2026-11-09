@@ -101,7 +101,7 @@
   "addBookmark": "Add bookmark",
   "bookmarkTitle": "Title",
   "bookmarkURL": "URL",
-  "editBookmark": "Edit title",
+  "editBookmark": "Edit bookmark",
   "saveBookmarkTitle": "Save",
   "invalidBookmarkURL": "Enter a valid HTTP(S) URL or domain.",
   "useBuiltInHome": "Use built-in home",

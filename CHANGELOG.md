@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Rename a bookmark from the home page. A pencil next to the delete button turns the row's label into a field with the row's own metrics: Enter saves, Escape discards, a blank name is refused, and clicking elsewhere commits. The URL stays the bookmark's identity, so the order, the visit count and the stored favicon are untouched, and the sidebar dock and search show the new name immediately.
-- Shrink the row actions. The buttons were 26 px targets with 16 px glyphs; they are now 22 px targets with 13 px glyphs, pencilled in one cluster against the row's right edge at 55% opacity that only reaches full strength under the pointer, so a row reads as text until it is actually hovered.
+- Edit a bookmark from the home page: the pencil next to the delete button turns both the label and the address into fields, so a bookmark saved under a useless page title — a login wall, "Just a moment..." — can be renamed and repointed without deleting and re-adding it. Enter saves, Escape discards, moving between the two fields is not a commit, and clicking elsewhere saves. A blank label, an unusable address and an address that is already bookmarked are all refused with a message and the editor reopens with what was typed; the bookmark keeps its position, visit count and stored icon unless the host actually changed.
+- A click inside those fields no longer opens the page. The fields live inside the row's link, and a click on a descendant still runs the link's own activation behaviour even when the event is stopped, so the row now cancels the click instead of only silencing its listener.
+- Shrink the row actions. The buttons were 26 px targets with 16 px glyphs; they are now 22 px targets with 13 px glyphs, in one cluster against the row's right edge at 55% opacity that only reaches full strength under the pointer, so a row reads as text until it is actually hovered.
 
 ## 0.1.5 — 2026-11-04
 
