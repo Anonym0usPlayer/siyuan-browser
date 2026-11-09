@@ -218,26 +218,6 @@ svg { display: block; }
   text-overflow: ellipsis;
 }
 .title { font-size: 13px; line-height: 1.45; }
-/* In-place bookmark editor: two fields wearing the row's own metrics, so the
- * row keeps its height and nothing shifts while a bookmark is being edited. */
-.bookmark-edit {
-  width: 100%;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  /* A rule drawn inside the box rather than a real border: a border would add a
-   * pixel per field and make the row jump as the editor opens. */
-  box-shadow: inset 0 -1px 0 rgba(127, 127, 127, 0.28);
-  outline: 0;
-  background-color: transparent;
-  color: inherit;
-}
-.bookmark-edit:focus {
-  box-shadow: inset 0 -1px 0 var(--b3-theme-primary);
-}
-.title-edit { font-size: 13px; line-height: 1.45; color: var(--b3-theme-on-background); }
-.url-edit { font-size: 11px; line-height: 1.4; color: var(--b3-theme-on-surface); }
 .url { font-size: 11px; line-height: 1.4; color: var(--b3-theme-on-surface); }
 /* A fixed, monospaced cell: every row ends its date on the same line no matter
  * how many 1s and 7s it happens to contain. */

@@ -148,7 +148,7 @@ test("homepage navigation, close/reopen and section changes integrate with brows
             contents: `
           export class Plugin { saveData() { return Promise.resolve(); } };
           export class Menu { addItem() {} addSeparator() {} open() {} };
-          export class Dialog {};
+          export class Dialog { constructor(o) { this.o = o; this.element = document.createElement('div'); this.element.innerHTML = o.content; document.body.append(this.element); } destroy() { this.element.remove(); this.o?.destroyCallback?.(); } };
           export class Setting {};
           export function showMessage() {};
           export function saveLayout(fn) { fn(); };
@@ -461,94 +461,78 @@ test("homepage navigation, close/reopen and section changes integrate with brows
     p.addBookmark("added.example", "Added");
     assert.throws(() => p.addBookmark("search query", "Bad"));
     assert.throws(() => p.addBookmark("javascript:alert(1)", "Bad"));
-    // A bookmark is renamed in place: the row swaps its label for a field, Enter
-    // saves, Escape discards, and a blank name never reaches the config.
+    // Editing a bookmark opens the kind of dialog a browser uses: both fields are
+    // prefilled, a refused value keeps the dialog open with a reason, and Cancel
+    // leaves the entry untouched.
     const bookmarkTitle = (url: string) =>
       p.config.bookmarks.find((item: any) => item.url === url).title;
-    const renameRow = (url: string) =>
+    const bookmarkRow = (url: string) =>
       [...v.homePage.sections.querySelectorAll('[data-section="bookmarks"] .row')]
         .find(
           (row: any) => row.querySelector("a")?.getAttribute("href") === url,
         ) as HTMLElement;
+    const editor = () => document.querySelector<HTMLElement>(".sb-dialog")!;
+    const openEditor = (url: string) => {
+      bookmarkRow(url)
+        .querySelector<HTMLButtonElement>('[aria-label^="editBookmark"]')!
+        .click();
+      return {
+        fields: [...editor().querySelectorAll<HTMLInputElement>("input")],
+        submit: () =>
+          editor()
+            .querySelector("form")!
+            .dispatchEvent(
+              new dom.window.Event("submit", { cancelable: true }),
+            ),
+      };
+    };
     p.bookmark("https://rename.example/", "Old name");
-    const renameButton = (row: HTMLElement) =>
-      row.querySelector<HTMLButtonElement>('[aria-label^="editBookmark"]')!;
-    renameButton(renameRow("https://rename.example/")).click();
-    let editor = renameRow("https://rename.example/").querySelector<
-      HTMLInputElement
-    >(".title-edit")!;
-    assert.equal(editor.value, "Old name");
-    // A click inside the editor still has the anchor above it, and an anchor's
-    // activation behaviour ignores stopPropagation: the row must cancel the
-    // default itself, or clicking to place the caret opens the page.
-    const inEditor = new dom.window.MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-    });
-    editor.dispatchEvent(inEditor);
-    assert.equal(inEditor.defaultPrevented, true);
-    const onRow = new dom.window.MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-    });
-    renameRow("https://rename.example/")
-      .querySelector("a")!
-      .dispatchEvent(onRow);
-    assert.equal(onRow.defaultPrevented, true);
-    assert.equal(v.url, HOME_URL, "the row does not navigate while editing");
-    editor = renameRow("https://rename.example/").querySelector<
-      HTMLInputElement
-    >(".title-edit")!;
-    editor.value = "New name";
-    editor.dispatchEvent(
-      new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-    );
-    assert.equal(bookmarkTitle("https://rename.example/"), "New name");
+    let { fields, submit } = openEditor("https://rename.example/");
+    assert.equal(fields[0].value, "Old name");
+    assert.equal(fields[1].value, "https://rename.example/");
+    fields[0].value = "New name";
+    fields[1].value = "moved.example/path";
+    submit();
     assert.equal(
-      renameRow("https://rename.example/").querySelector(".title")?.textContent,
+      bookmarkTitle("https://moved.example/path"),
+      "New name",
+      "a bare host gains https and the label follows",
+    );
+    assert.equal(document.querySelector(".sb-dialog"), null, "saving closes it");
+    assert.equal(
+      bookmarkRow("https://moved.example/path").querySelector(".title")
+        ?.textContent,
       "New name",
       "the rebuilt row shows the new label",
     );
-    renameButton(renameRow("https://rename.example/")).click();
-    editor = renameRow("https://rename.example/").querySelector<
-      HTMLInputElement
-    >(".title-edit")!;
-    editor.value = "Discarded";
-    editor.dispatchEvent(
-      new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-    );
-    assert.equal(bookmarkTitle("https://rename.example/"), "New name");
     assert.equal(
-      p.editBookmark("https://rename.example/", {
-        title: "   ",
-        url: "https://rename.example/",
-      }),
-      "empty-title",
-    );
-    assert.equal(bookmarkTitle("https://rename.example/"), "New name");
-    // The address is editable too: the bookmark moves to the new target, keeps
-    // its label, and an unusable or already-saved address is refused without
-    // touching the entry.
-    renameButton(renameRow("https://rename.example/")).click();
-    const movedRow = renameRow("https://rename.example/");
-    const movedURL = movedRow.querySelector<HTMLInputElement>(".url-edit")!;
-    assert.equal(movedURL.value, "https://rename.example/");
-    movedRow.querySelector<HTMLInputElement>(".title-edit")!.value = "Moved";
-    movedURL.value = "moved.example/path";
-    movedURL.dispatchEvent(
-      new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-    );
-    assert.equal(
-      p.config.bookmarks.find(
-        (item: any) => item.url === "https://moved.example/path",
-      )?.title,
-      "Moved",
-      "a bare host gains https and the label follows",
-    );
-    assert.equal(
-      renameRow("https://moved.example/path").querySelector(".url")
+      bookmarkRow("https://moved.example/path").querySelector(".url")
         ?.textContent,
       "moved.example/path",
+    );
+    // An unusable address keeps the dialog open, explains itself and saves nothing.
+    ({ fields, submit } = openEditor("https://moved.example/path"));
+    fields[1].value = "javascript:alert(1)";
+    submit();
+    assert.equal(
+      editor().querySelector(".ft__error")!.textContent,
+      "invalidBookmarkURL",
+    );
+    assert.equal(bookmarkTitle("https://moved.example/path"), "New name");
+    // Cancel discards the draft without touching the entry.
+    fields[0].value = "Discarded";
+    [...editor().querySelectorAll("button")]
+      .find((item) => item.textContent === "cancel")!
+      .click();
+    assert.equal(document.querySelector(".sb-dialog"), null, "cancel closes it");
+    assert.equal(bookmarkTitle("https://moved.example/path"), "New name");
+    // The plugin refuses a blank label and an address that is already saved.
+    assert.equal(
+      p.editBookmark("https://moved.example/path", {
+        title: "   ",
+        url: "https://moved.example/path",
+      }),
+      "empty-title",
     );
     const existing = p.config.bookmarks.find((item: any) =>
       item.url.includes("added.example"),
@@ -567,7 +551,7 @@ test("homepage navigation, close/reopen and section changes integrate with brows
       }),
       "invalid-url",
     );
-    assert.equal(bookmarkTitle("https://moved.example/path"), "Moved");
+    assert.equal(bookmarkTitle("https://moved.example/path"), "New name");
     // Only bookmarks carry the edit button; history rows keep the delete one.
     assert.equal(
       v.homePage.sections.querySelector(

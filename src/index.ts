@@ -383,11 +383,6 @@ export default class BrowserPlugin extends Plugin {
     this.refreshPages();
     return "saved";
   }
-  /** Surface a short status message in the host UI; the pages themselves run
-   * inside webviews and shadow roots and cannot reach the host toast. */
-  notify(message: string) {
-    showMessage(message);
-  }
   refreshPages() {
     for (const view of this.views) {
       view.refreshInternalPages();

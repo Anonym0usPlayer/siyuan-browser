@@ -116,11 +116,12 @@ export function syncIconSprite(shadow: ShadowRoot) {
 export function dialog(
   title: string,
   onClose?: () => void,
+  width = "620px",
 ): { dialog: Dialog; body: HTMLElement } {
   const d = new Dialog({
     title,
     content: '<div class="sb-dialog"></div>',
-    width: "620px",
+    width,
     destroyCallback: onClose,
   });
   return { dialog: d, body: d.element.querySelector(".sb-dialog")! };

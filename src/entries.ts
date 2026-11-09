@@ -60,83 +60,13 @@ export function entryRow(
     });
   });
   const body = element("span", "body");
-  const title = element("span", "title", entry.title || entry.url);
-  const label = element("span", "url", url.host + url.pathname);
-  body.append(title, label);
+  body.append(
+    element("span", "title", entry.title || entry.url),
+    element("span", "url", url.host + url.pathname),
+  );
   link.append(site, body);
-  // Bookmarks are edited in place: the label and the address both turn into
-  // fields, and while they are open the row must not navigate. Stopping
-  // propagation is not enough - a click inside an <a> still runs the link's own
-  // activation behaviour - so the fields cancel the click as well.
-  const editing = () => Boolean(link.querySelector(".bookmark-edit"));
-  const edit = (draft?: { title: string; url: string }) => {
-    if (!title.isConnected || editing()) return;
-    const inputs = [element("input", "bookmark-edit title-edit"), element("input", "bookmark-edit url-edit")];
-    const [name, target] = inputs;
-    name.value = draft?.title ?? entry.title ?? "";
-    target.value = draft?.url ?? entry.url;
-    name.spellcheck = false;
-    target.spellcheck = false;
-    name.setAttribute("aria-label", p.t("bookmarkTitle"));
-    target.setAttribute("aria-label", p.t("bookmarkURL"));
-    target.inputMode = "url";
-    let done = false;
-    const active = () => {
-      const root = row.getRootNode() as Document | ShadowRoot;
-      return root.activeElement;
-    };
-    const finish = (save: boolean) => {
-      if (done) return;
-      done = true;
-      const next = { title: name.value.trim(), url: target.value.trim() };
-      name.replaceWith(title);
-      target.replaceWith(label);
-      if (!save || (next.title === entry.title && next.url === entry.url))
-        return;
-      const result = p.editBookmark(entry.url, next);
-      if (result === "empty-title") {
-        p.notify(p.t("emptyBookmarkTitle"));
-        edit(next);
-      } else if (result === "invalid-url") {
-        p.notify(p.t("invalidBookmarkURL"));
-        edit(next);
-      } else if (result === "duplicate") {
-        p.notify(p.t("duplicateBookmark"));
-        edit(next);
-      }
-    };
-    for (const input of inputs) {
-      for (const type of ["click", "dblclick", "mousedown", "auxclick"])
-        input.addEventListener(type, (event) => {
-          event.stopPropagation();
-          // Cancelling the click keeps the caret click from following the href.
-          if (type === "click") event.preventDefault();
-        });
-      input.addEventListener("keydown", (event) => {
-        event.stopPropagation();
-        if (event.key === "Enter") {
-          event.preventDefault();
-          finish(true);
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          finish(false);
-        }
-      });
-      // Moving from one field to the other is not a commit; leaving both is.
-      input.addEventListener("blur", () => {
-        setTimeout(() => {
-          if (!done && active() !== name && active() !== target) finish(true);
-        });
-      });
-    }
-    title.replaceWith(name);
-    label.replaceWith(target);
-    name.focus();
-    name.select();
-  };
   link.addEventListener("click", (event) => {
     event.preventDefault();
-    if (editing()) return;
     if (event.ctrlKey || event.metaKey || event.shiftKey) {
       if (section === "recentlyClosed") void p.reopen(entry as ClosedEntry);
       else void p.open(entry.url, undefined, event.ctrlKey || event.metaKey);
@@ -149,7 +79,6 @@ export function entryRow(
   link.addEventListener("auxclick", (event) => {
     if (event.button !== 1) return;
     event.preventDefault();
-    if (editing()) return;
     if (section === "recentlyClosed") void p.reopen(entry as ClosedEntry);
     else void p.open(entry.url, undefined, true);
   });
@@ -174,7 +103,7 @@ export function entryRow(
       plainIconButton(
         "iconEdit",
         p.t("editBookmark") + " · " + (entry.title || entry.url),
-        () => edit(),
+        () => editBookmarkDialog(p, entry),
       ),
     );
   if (section !== "mostVisited")
@@ -194,7 +123,7 @@ export function entryRow(
 }
 
 export function addBookmarkDialog(p: BrowserPlugin) {
-  const d = dialog(p.t("addBookmark"));
+  const d = dialog(p.t("addBookmark"), undefined, "440px");
   const title = element("input", "b3-text-field"),
     url = element("input", "b3-text-field");
   url.placeholder = "https://";
@@ -218,4 +147,58 @@ export function addBookmarkDialog(p: BrowserPlugin) {
   });
   d.body.append(form);
   url.focus();
+}
+
+/** The bookmark editor, in the shape a browser uses: a small dialog carrying the
+ * name and the address, prefilled, with the reason shown in place when the entry
+ * cannot be saved. Nothing on the page behind it changes until it is saved. */
+export function editBookmarkDialog(p: BrowserPlugin, entry: Entry) {
+  const d = dialog(p.t("editBookmark"), undefined, "440px");
+  const title = element("input", "b3-text-field");
+  const url = element("input", "b3-text-field");
+  title.value = entry.title || "";
+  url.value = entry.url;
+  title.spellcheck = false;
+  url.spellcheck = false;
+  url.inputMode = "url";
+  url.placeholder = "https://";
+  const error = element("p", "ft__error");
+  const form = element("form");
+  // A real submit button, so Enter saves from either field.
+  const save = element(
+    "button",
+    "b3-button b3-button--primary",
+    p.t("saveBookmarkTitle"),
+  );
+  save.type = "submit";
+  form.append(
+    field(p.t("bookmarkTitle"), title),
+    field(p.t("bookmarkURL"), url),
+    error,
+    button(p.t("cancel"), () => d.dialog.destroy()),
+    save,
+  );
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const result = p.editBookmark(entry.url, {
+      title: title.value,
+      url: url.value,
+    });
+    if (result === "saved" || result === "missing") {
+      d.dialog.destroy();
+      return;
+    }
+    error.textContent =
+      result === "empty-title"
+        ? p.t("emptyBookmarkTitle")
+        : result === "duplicate"
+          ? p.t("duplicateBookmark")
+          : p.t("invalidBookmarkURL");
+    // Leave the caret where the fix belongs.
+    (result === "empty-title" ? title : url).focus();
+  });
+  d.body.append(form);
+  title.focus();
+  title.select();
+  return d;
 }
