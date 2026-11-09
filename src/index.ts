@@ -343,6 +343,17 @@ export default class BrowserPlugin extends Plugin {
     this.persist();
     this.refreshPages();
   }
+  /** Rename a saved bookmark. The URL is the identity, so the label can change
+   * without touching the order, the visit count or the stored favicon; an empty
+   * name is refused rather than leaving a nameless row behind. */
+  renameBookmark(url: string, title: string) {
+    const name = title.trim();
+    const entry = this.config.bookmarks.find((item) => item.url === url);
+    if (!name || !entry || entry.title === name) return;
+    entry.title = name;
+    this.persist();
+    this.refreshPages();
+  }
   refreshPages() {
     for (const view of this.views) {
       view.refreshInternalPages();

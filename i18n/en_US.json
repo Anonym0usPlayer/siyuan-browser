@@ -101,6 +101,8 @@
   "addBookmark": "Add bookmark",
   "bookmarkTitle": "Title",
   "bookmarkURL": "URL",
+  "editBookmark": "Edit title",
+  "saveBookmarkTitle": "Save",
   "invalidBookmarkURL": "Enter a valid HTTP(S) URL or domain.",
   "useBuiltInHome": "Use built-in home",
   "homeHint": "Uses the built-in homepage by default. You can also enter a website or about:blank.",

@@ -180,9 +180,9 @@ svg { display: block; }
   display: flex;
   align-items: center;
   gap: 10px;
-  /* The trailing padding is the delete button's home: it floats there, so a row
-   * without an action and a row with one put the timestamp in the same place. */
-  padding: 4px 32px 4px 4px;
+  /* The trailing padding is the hover cluster's home: it floats there, so a row
+   * without actions and a row with them put the timestamp in the same place. */
+  padding: 4px 50px 4px 4px;
   border-radius: 7px;
 }
 .row:hover { background-color: rgba(127, 127, 127, 0.09); }
@@ -218,6 +218,21 @@ svg { display: block; }
   text-overflow: ellipsis;
 }
 .title { font-size: 13px; line-height: 1.45; }
+/* In-place rename: the label turns into a field with the row's own metrics, so
+ * nothing on the row moves while the bookmark is being renamed. */
+.title-edit {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 1px;
+  border: 0;
+  border-bottom: 1px solid var(--b3-theme-primary);
+  outline: 0;
+  background-color: transparent;
+  color: var(--b3-theme-on-background);
+  font-size: 13px;
+  line-height: 1.45;
+}
 .url { font-size: 11px; line-height: 1.4; color: var(--b3-theme-on-surface); }
 /* A fixed, monospaced cell: every row ends its date on the same line no matter
  * how many 1s and 7s it happens to contain. */
@@ -232,14 +247,33 @@ svg { display: block; }
   color: var(--b3-theme-on-surface);
   font-variant-numeric: tabular-nums;
 }
-.row > .icon-button {
+/* Hover cluster: small, quiet buttons that appear only for the row under the
+ * pointer. Quiet at 55% until the pointer actually reaches one of them. */
+.row-actions {
   position: absolute;
   top: 50%;
   right: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
   transform: translateY(-50%);
 }
-.row .icon-button { opacity: 0; }
-.row:hover .icon-button, .row:focus-within .icon-button { opacity: 1; }
+.row-actions .icon-button {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--b3-theme-on-surface);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.row-actions .sb-icon { width: 13px; height: 13px; }
+.row:hover .row-actions .icon-button,
+.row:focus-within .row-actions .icon-button { opacity: 0.55; }
+.row-actions .icon-button:hover,
+.row-actions .icon-button:focus-visible {
+  opacity: 1;
+  color: var(--b3-theme-on-background);
+}
 
 .empty {
   margin: 0;

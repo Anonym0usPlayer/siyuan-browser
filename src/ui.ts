@@ -35,6 +35,7 @@ const thinPaths: Record<string, string> = {
   star: "m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z",
   more: "M5 12h.01M12 12h.01M19 12h.01",
   iconBookmark: "M6 3h12v18l-6-4-6 4Z",
+  iconEdit: "M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z",
   iconHistory: "M3 4v5h5M3 9a9 9 0 1 1 0 6M12 7v5l3 2",
 };
 export function icon(name: string) {

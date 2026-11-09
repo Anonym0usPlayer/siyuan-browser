@@ -60,11 +60,44 @@ export function entryRow(
     });
   });
   const body = element("span", "body");
-  body.append(
-    element("span", "title", entry.title || entry.url),
-    element("span", "url", url.host + url.pathname),
-  );
+  const title = element("span", "title", entry.title || entry.url);
+  body.append(title, element("span", "url", url.host + url.pathname));
   link.append(site, body);
+  // Bookmarks can be renamed in place. The editor replaces the label inside the
+  // link, so it stops its own clicks from reaching the anchor - otherwise typing
+  // in it would navigate away mid-edit.
+  const rename = (value: string) => p.renameBookmark(entry.url, value);
+  const editTitle = () => {
+    if (!title.isConnected || link.querySelector(".title-edit")) return;
+    const input = element("input", "title-edit");
+    input.value = entry.title || entry.url;
+    input.setAttribute("aria-label", p.t("editBookmark"));
+    input.spellcheck = false;
+    let done = false;
+    const finish = (save: boolean) => {
+      if (done) return;
+      done = true;
+      const value = input.value.trim();
+      input.replaceWith(title);
+      if (save && value && value !== (entry.title || entry.url)) rename(value);
+    };
+    for (const event of ["click", "dblclick", "mousedown", "auxclick"])
+      input.addEventListener(event, (e) => e.stopPropagation());
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+    title.replaceWith(input);
+    input.focus();
+    input.select();
+  };
   link.addEventListener("click", (event) => {
     event.preventDefault();
     if (event.ctrlKey || event.metaKey || event.shiftKey) {
@@ -93,10 +126,21 @@ export function entryRow(
   // then share one column edge, so the dates and the visit counts close on the
   // same line in every section.
   row.append(element("span", "meta", meta));
-  // The delete button floats in the row's trailing gutter instead of taking a
-  // cell of its own, so hovering never shifts the timestamp sideways.
+  // Hover actions live in one cluster pinned to the row's right edge: a
+  // bookmark gets a rename button before its delete button, and the rest of the
+  // sections get only the delete button. The row reserves the cluster's width
+  // as padding, so its absence never moves the timestamp.
+  const actions = element("span", "row-actions");
+  if (section === "bookmarks")
+    actions.append(
+      plainIconButton(
+        "iconEdit",
+        p.t("editBookmark") + " · " + (entry.title || entry.url),
+        editTitle,
+      ),
+    );
   if (section !== "mostVisited")
-    row.append(
+    actions.append(
       plainIconButton(
         "iconClose",
         p.t("delete") + " · " + (entry.title || entry.url),
@@ -107,6 +151,7 @@ export function entryRow(
         },
       ),
     );
+  if (actions.childElementCount) row.append(actions);
   return row;
 }
 

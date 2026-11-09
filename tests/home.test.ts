@@ -461,6 +461,51 @@ test("homepage navigation, close/reopen and section changes integrate with brows
     p.addBookmark("added.example", "Added");
     assert.throws(() => p.addBookmark("search query", "Bad"));
     assert.throws(() => p.addBookmark("javascript:alert(1)", "Bad"));
+    // A bookmark is renamed in place: the row swaps its label for a field, Enter
+    // saves, Escape discards, and a blank name never reaches the config.
+    const bookmarkTitle = (url: string) =>
+      p.config.bookmarks.find((item: any) => item.url === url).title;
+    const renameRow = (url: string) =>
+      [...v.homePage.sections.querySelectorAll('[data-section="bookmarks"] .row')]
+        .find(
+          (row: any) => row.querySelector("a")?.getAttribute("href") === url,
+        ) as HTMLElement;
+    p.bookmark("https://rename.example/", "Old name");
+    const renameButton = (row: HTMLElement) =>
+      row.querySelector<HTMLButtonElement>('[aria-label^="editBookmark"]')!;
+    renameButton(renameRow("https://rename.example/")).click();
+    let editor = renameRow("https://rename.example/").querySelector<
+      HTMLInputElement
+    >(".title-edit")!;
+    assert.equal(editor.value, "Old name");
+    editor.value = "New name";
+    editor.dispatchEvent(
+      new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    assert.equal(bookmarkTitle("https://rename.example/"), "New name");
+    assert.equal(
+      renameRow("https://rename.example/").querySelector(".title")?.textContent,
+      "New name",
+      "the rebuilt row shows the new label",
+    );
+    renameButton(renameRow("https://rename.example/")).click();
+    editor = renameRow("https://rename.example/").querySelector<
+      HTMLInputElement
+    >(".title-edit")!;
+    editor.value = "Discarded";
+    editor.dispatchEvent(
+      new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    assert.equal(bookmarkTitle("https://rename.example/"), "New name");
+    p.renameBookmark("https://rename.example/", "   ");
+    assert.equal(bookmarkTitle("https://rename.example/"), "New name");
+    // Only bookmarks carry the rename button; history rows keep the delete one.
+    assert.equal(
+      v.homePage.sections.querySelector(
+        '[data-section="history"] [aria-label^="editBookmark"]',
+      ),
+      null,
+    );
     const closed = mount("https://closed.example/");
     closed.web.emitTitle("Closed page");
     closed.destroy();

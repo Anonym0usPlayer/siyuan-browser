@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Rename a bookmark from the home page. A pencil next to the delete button turns the row's label into a field with the row's own metrics: Enter saves, Escape discards, a blank name is refused, and clicking elsewhere commits. The URL stays the bookmark's identity, so the order, the visit count and the stored favicon are untouched, and the sidebar dock and search show the new name immediately.
+- Shrink the row actions. The buttons were 26 px targets with 16 px glyphs; they are now 22 px targets with 13 px glyphs, pencilled in one cluster against the row's right edge at 55% opacity that only reaches full strength under the pointer, so a row reads as text until it is actually hovered.
+
 ## 0.1.5 — 2026-11-04
 
 - Render the home page inside its own shadow root. Rows, lists and section headings used to be host-classed nodes styled from the plugin sheet, so any theme, companion plugin or CSS snippet could repaint a row's fill, margin and radius — and out-specifying them only moved the problem to whoever was injected last. The page now ships its own stylesheet and clones the host's icon sprite into the root, so nothing outside it can reach a row; the same markup renders identically under Daylight, Neo or a hostile `!important` override. Rows and the layout controls drop the borrowed `b3-list` / `b3-list-item` classes, which also removes the host's `margin: 1px 8px` + `padding: 0 4px` that shrank each section's list by a different amount and painted a block behind every row.
