@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.1.5 — 2026-11-11
 
 - Add a userscript manager with metadata review, disabled-by-default installation, per-workspace storage, explicit GM grants, isolated execution, pinned HTTPS dependencies and execution logs. See [supported APIs and limitations](docs/USERSCRIPTS.md).
+
+- Include Markdown content snapshots, capture timestamps and source/provenance guidance in bookmark notes.
+- Check bookmark snapshot content and age on opening; prompt for missing snapshots, changed content or snapshots older than seven days.
+- Add menu actions to check and refresh snapshots; preserve previous content by appending dated revisions.
+
+Validation: 55 automated tests, typecheck and package verification passed. SiYuan kernel checks verified snapshot content/attributes and append preservation. Native snapshot notification interactions remain unverified.
 
 ## 0.1.4 — 2026-10-31
 

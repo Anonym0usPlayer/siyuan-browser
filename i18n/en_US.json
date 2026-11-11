@@ -210,5 +210,7 @@
   "scriptNoLogs": "No executions yet. Enable a script and reload a matching page.",
   "scriptScope": "Partial GM API support, matching HTTP(S) top frames only. Install trusted scripts: they can read and modify matching pages. Cross-origin GM requests, synchronous GM storage and document-start are not supported yet.",
   "close": "Close",
-  "scriptRefresh": "Refresh log"
+  "scriptRefresh": "Refresh log",
+  "checkBookmarkSnapshot": "Check bookmark snapshot",
+  "updateBookmarkSnapshot": "Update bookmark Markdown snapshot"
 }

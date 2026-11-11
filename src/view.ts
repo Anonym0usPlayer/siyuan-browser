@@ -538,6 +538,7 @@ export class BrowserView {
     });
     this.web.addEventListener("did-stop-loading", () => {
       this.setLoading(false);
+      if (custom.data?.bookmarkDocId) void p.checkBookmarkSnapshot(this);
       if (!this.status.textContent?.startsWith(p.t("failed")))
         this.status.textContent = "";
       this.updateNavigation();
@@ -1224,14 +1225,33 @@ export class BrowserView {
       m.addItem({ label, click: fn });
     add(p.t("userScripts"), () => p.showUserScripts());
     if (this.web && !this.data.archive && httpURL(this.url)) {
-      for (const command of p.adapter.bridge.userScriptCommands(p.adapter.partition, this.web.getWebContentsId()))
-        add(command.label, () => p.guard(async () => p.adapter.bridge.userScriptCommand(
-          p.adapter.partition, this.web.getWebContentsId(), command.token, command.id)));
+      for (const command of p.adapter.bridge.userScriptCommands(
+        p.adapter.partition,
+        this.web.getWebContentsId(),
+      ))
+        add(command.label, () =>
+          p.guard(async () =>
+            p.adapter.bridge.userScriptCommand(
+              p.adapter.partition,
+              this.web.getWebContentsId(),
+              command.token,
+              command.id,
+            ),
+          ),
+        );
     }
     if (httpURL(this.url))
       add(p.t("saveBookmarkNote"), () =>
         p.guard(() => p.saveBookmarkNote(this.url, this.title)),
       );
+    if (this.custom.data?.bookmarkDocId) {
+      add(p.t("checkBookmarkSnapshot"), () =>
+        p.guard(() => p.checkBookmarkSnapshot(this)),
+      );
+      add(p.t("updateBookmarkSnapshot"), () =>
+        p.guard(() => p.updateBookmarkSnapshot(this)),
+      );
+    }
     add(p.t("browserHome"), () => this.navigate(HOME_URL));
     if (p.config.recentlyClosed?.[0])
       add(p.t("reopenClosed"), () =>

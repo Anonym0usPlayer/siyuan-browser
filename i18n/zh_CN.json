@@ -210,5 +210,7 @@
   "scriptNoLogs": "暂无记录；启用后重新加载匹配的网页。",
   "scriptScope": "兼容部分 GM API，只运行在匹配的 HTTP(S) 网页主框架。仅安装可信脚本；脚本可读取和修改匹配网页内容。暂不支持跨域 GM 请求、同步 GM 存储和 document-start。",
   "close": "关闭",
-  "scriptRefresh": "刷新记录"
+  "scriptRefresh": "刷新记录",
+  "checkBookmarkSnapshot": "检查书签快照",
+  "updateBookmarkSnapshot": "更新书签 Markdown 快照"
 }

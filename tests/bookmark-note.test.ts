@@ -92,7 +92,7 @@ test("opening routes only marked foreground documents and ignores duplicate/back
   new Function("module", "exports", "require", bundle.outputFiles[0].text)(
     module,
     module.exports,
-    () => ({ Plugin: class {} }),
+    () => ({ Plugin: class {}, showMessage: () => {} }),
   );
   const p = new module.exports.default();
   const tasks: Promise<void>[] = [];

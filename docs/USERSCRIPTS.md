@@ -1,6 +1,6 @@
 # 用户脚本（开发版）
 
-用户脚本功能位于 v0.1.4 之后的开发代码中，不包含在 v0.1.4 发布包内。它支持明确列出的 GM API 子集，尚不兼容所有 Tampermonkey / Greasemonkey 脚本。
+用户脚本功能自 v0.1.5 起提供。它支持明确列出的 GM API 子集，尚不兼容所有 Tampermonkey / Greasemonkey 脚本。
 
 ## 使用
 

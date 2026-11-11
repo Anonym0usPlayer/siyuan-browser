@@ -24,7 +24,7 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 - **Enhanced copy**: paste web or reader selections into SiYuan blocks, preserving supported headings, lists, links, code and formulas.
 - **Sessions and filtering**: website cookies use a workspace-specific session isolated from the SiYuan host. Manage filtering subscriptions, temporarily toggle filtering for the current tab, or clear browser data.
 
-**Development feature:** the code after v0.1.4 adds a userscript manager under More → User scripts. See [supported APIs, usage and limitations](docs/USERSCRIPTS.md). This is not included in the v0.1.4 release.
+**New in v0.1.5:** a userscript manager under More → User scripts. See [supported APIs, usage and limitations](docs/USERSCRIPTS.md).
 
 ## Installation
 
@@ -77,7 +77,7 @@ Open an archive from the save job or its note link. MHTML uses a separate view w
 
 Choose **Save as bookmark note** in the webpage menu or a library entry's context menu, then enter a title and select a notebook root or parent document in the expandable document tree. The resulting SiYuan document appears in the file tree and search results. Opening it with the desktop plugin running opens the webpage in a browser tab. Its body retains a clickable URL when the plugin is disabled.
 
-Only documents with `custom-siyuan-browser-kind=bookmark` and a valid `custom-siyuan-browser-url` redirect; the visible tag is for search only. Remove the kind attribute to restore ordinary note behavior. Bookmark notes store URLs, not webpage content or offline snapshots.
+Only documents with `custom-siyuan-browser-kind=bookmark` and a valid `custom-siyuan-browser-url` redirect; the visible tag is for search only. Remove the kind attribute to restore ordinary note behavior. Bookmark notes include a dated Markdown content snapshot, source URL and provenance guidance for agents. Opening checks extracted content against the saved hash; missing snapshots, changed content or age over seven days prompt review. The webpage menu can check or append a refreshed snapshot while preserving earlier content. Capture time is not the website modification time. Dynamic content and login state can affect comparisons; attachments may still require the network.
 
 ## Common actions
 

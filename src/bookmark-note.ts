@@ -1,3 +1,9 @@
+import {
+  snapshotBody,
+  SNAPSHOT_TIME,
+  SNAPSHOT_HASH,
+  type BookmarkSnapshot,
+} from "./bookmark-snapshot";
 import { api } from "./api";
 import { httpURL, safeTitle } from "./core";
 import { normalizeParentPath } from "./destination";
@@ -20,6 +26,7 @@ export async function createBookmarkNote(
   title: string,
   url: string,
   favicon?: string,
+  content?: BookmarkSnapshot,
 ): Promise<string> {
   if (!httpURL(url)) throw Error("Invalid bookmark URL");
   // Encode characters that could terminate the Markdown autolink or IAL value.
@@ -33,7 +40,11 @@ export async function createBookmarkNote(
       (path === "/" ? "" : path) +
       "/" +
       safeTitle(title || new URL(source).hostname),
-    markdown: `#网页书签#\n\n<${source}>\n`,
+    markdown:
+      `#网页书签#\n\n<${source}>\n\n` +
+      (content
+        ? snapshotBody(source, content)
+        : "此文档是网页书签，尚未采集正文快照。\n"),
   });
   try {
     await api("attr/setBlockAttrs", {
@@ -41,6 +52,9 @@ export async function createBookmarkNote(
       attrs: {
         [BOOKMARK_KIND]: "bookmark",
         [BOOKMARK_URL]: source,
+        ...(content
+          ? { [SNAPSHOT_TIME]: content.updated, [SNAPSHOT_HASH]: content.hash }
+          : {}),
         icon: favicon && httpURL(favicon) ? favicon : "1f310",
       },
     });

@@ -1,3 +1,10 @@
+import {
+  snapshot,
+  snapshotBody,
+  snapshotStatus,
+  SNAPSHOT_TIME,
+  SNAPSHOT_HASH,
+} from "./bookmark-snapshot";
 import { DocumentIconRefresh } from "./document-icon";
 import { userScriptManager } from "./userscripts/ui";
 import { documentTree, type TreeDestination } from "./document-tree";
@@ -232,11 +239,7 @@ export default class BrowserPlugin extends Plugin {
     });
     const target = bookmarkURL(attrs);
     // Do not change the bookmark's icon after navigating to another site.
-    if (
-      !target ||
-      new URL(target).origin !== new URL(source).origin
-    )
-      return;
+    if (!target || new URL(target).origin !== new URL(source).origin) return;
     if (attrs.icon !== favicon)
       await api("attr/setBlockAttrs", { id, attrs: { icon: favicon } });
     this.documentIcons.update(id, favicon);
@@ -270,13 +273,100 @@ export default class BrowserPlugin extends Plugin {
           protyle.element.closest(".fn__none")
         )
           return;
-        await this.openBookmarkTab(id, url);
+        const status = snapshotStatus(attrs);
+        if (status) showMessage(status, 10000);
+        const opened = await this.openBookmarkTab(id, url);
+        const view = [...this.views].find((v) => v.custom.tab === opened);
+        if (view && !view.loading) void this.checkBookmarkSnapshot(view);
         if (!this.closing && protyle.block.rootID === id) tab.close();
       } finally {
         this.bookmarkOpening.delete(protyle);
       }
     });
   };
+  private checkingSnapshots = new Set<string>();
+  async checkBookmarkSnapshot(view: BrowserView) {
+    const id = view.custom.data?.bookmarkDocId;
+    if (!id || view.disposed || view.loading || this.checkingSnapshots.has(id))
+      return;
+    this.checkingSnapshots.add(id);
+    try {
+      const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+        id,
+      });
+      const url = bookmarkURL(attrs);
+      if (!url || view.url !== url) return;
+      const current = await snapshot(await view.article());
+      if (view.disposed || view.url !== url || this.closing) return;
+      const message = snapshotStatus(attrs, current.hash);
+      if (message) showMessage(message, 10000);
+    } catch {
+      if (!view.disposed && !this.closing)
+        showMessage(
+          "暂时无法核验书签快照，请等待网页加载完成后从菜单检查。",
+          7000,
+        );
+    } finally {
+      this.checkingSnapshots.delete(id);
+    }
+  }
+  async updateBookmarkSnapshot(view: BrowserView) {
+    const id = view.custom.data?.bookmarkDocId;
+    if (!id) return;
+    const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+      id,
+    });
+    const url = bookmarkURL(attrs);
+    if (!url || view.url !== url || view.loading)
+      throw Error("请返回书签原网页并等待加载完成后更新快照");
+    const article = await view.article();
+    if (article.url !== url || view.url !== url)
+      throw Error("网页已切换，请重试");
+    const content = await snapshot(article);
+    await api("block/appendBlock", {
+      parentID: id,
+      dataType: "markdown",
+      data: snapshotBody(url, content),
+    });
+    await api("attr/setBlockAttrs", {
+      id,
+      attrs: {
+        [SNAPSHOT_TIME]: content.updated,
+        [SNAPSHOT_HASH]: content.hash,
+      },
+    });
+    showMessage("书签 Markdown 快照已更新，历史内容已保留。");
+  }
+  async captureBookmark(url: string) {
+    let view = [...this.views].find(
+      (v) => !v.disposed && v.url === url && v.web,
+    );
+    if (!view) {
+      const tab = await this.open(url);
+      const deadline = Date.now() + 20000;
+      while (!view && Date.now() < deadline && !this.closing) {
+        await new Promise((r) => setTimeout(r, 100));
+        view = [...this.views].find(
+          (v) => !v.disposed && v.custom.tab === tab && v.web,
+        );
+      }
+    }
+    if (!view) throw Error("请先打开网页并完成登录，再保存书签快照");
+    const deadline = Date.now() + 20000;
+    while (
+      view.loading &&
+      Date.now() < deadline &&
+      !view.disposed &&
+      !this.closing
+    )
+      await new Promise((r) => setTimeout(r, 100));
+    if (view.loading || view.disposed || this.closing || view.url !== url)
+      throw Error("请等待原网页加载完成后重试");
+    const article = await view.article();
+    if (article.url !== url || view.url !== url)
+      throw Error("网页地址已改变，请在当前网页重新保存");
+    return snapshot(article);
+  }
   async saveBookmarkNote(url: string, title: string) {
     if (!httpURL(url)) return;
     const live = [...this.views].find(
@@ -340,12 +430,14 @@ export default class BrowserPlugin extends Plugin {
           const favicon =
             storedFavicon(this.config, url) ||
             new URL("/favicon.ico", url).href;
+          const content = await this.captureBookmark(url);
           const savedID = await createBookmarkNote(
             target.notebook,
             parent,
             name.value,
             url,
             favicon,
+            content,
           );
           this.documentIcons.update(savedID, favicon);
           if (remember.checked) {
@@ -776,7 +868,9 @@ export default class BrowserPlugin extends Plugin {
     this.makeSettings();
     super.openSetting();
   }
-  showUserScripts() { userScriptManager(this); }
+  showUserScripts() {
+    userScriptManager(this);
+  }
   makeSettings() {
     this.setting = new Setting({
       confirmCallback: () => {
@@ -794,8 +888,13 @@ export default class BrowserPlugin extends Plugin {
       i.onchange = () => (this.config[key] = i.checked);
       return i;
     };
-    this.setting.addItem({ title: this.t("userScripts"), description: this.t("scriptScope"),
-      actionElement: button(this.t("userScripts"), () => this.showUserScripts()) });
+    this.setting.addItem({
+      title: this.t("userScripts"),
+      description: this.t("scriptScope"),
+      actionElement: button(this.t("userScripts"), () =>
+        this.showUserScripts(),
+      ),
+    });
     for (const key of ["takeover", "adblock"] as const)
       this.setting.addItem({
         title: this.t(key),

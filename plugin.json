@@ -2,7 +2,7 @@
   "name": "siyuan-browser",
   "author": "fu1fan",
   "url": "https://github.com/fu1fan/siyuan-browser",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "minAppVersion": "3.8.6",
   "backends": [
     "windows",
