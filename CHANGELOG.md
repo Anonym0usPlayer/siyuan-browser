@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Follow the theme's corners. The browser panel is a body-level overlay that sits on top of SiYuan's tab panel instead of inside it, so the panel could never clip it: a rounded theme still got a square block painted over its corners. The surface now copies the radius of the innermost rounded ancestor whenever it re-syncs, which means a rounded theme rounds it by exactly the same amount and a square theme leaves it alone (no radius, no rounding of any kind). A theme switch re-syncs and the corner follows. Inside the panel, every literal radius is gone in favour of the host's three steps — `--b3-border-radius-s` / `-b3-border-radius` / `-b3-border-radius-b` (3 / 6 / 12 px in daylight) — so the address suggestions, the page options panel, the save preview, the destination tree, the sidebar dock and the home page (which reads the same three steps inside its shadow root) all bend the way the rest of the workspace does instead of staying hard-coded at 4–14 px. Themes that do not define the variables keep daylight's numbers, so nothing moves for them.
+
 ## 0.1.7 — 2026-11-12
 
 ### Imported from upstream 0.1.3 – 0.1.6

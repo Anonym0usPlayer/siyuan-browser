@@ -45,6 +45,26 @@ export class TabSurface {
     this.sync();
   }
 
+  /** Radius of the panel that hosts the anchor.
+   *
+   * This surface is appended to `body` and positioned over the panel, so the
+   * panel's own rounded corners cannot clip it: the square overlay painted over
+   * them, and the whole browser looked square inside a rounded theme. Take the
+   * innermost rounded ancestor instead of a fixed value, so a rounded theme
+   * rounds the surface and a square one leaves it alone. The host's generic
+   * radius variables are deliberately not used — a panel's corner is usually
+   * larger than a button's, and only the panel knows by how much. */
+  private panelRadius() {
+    const stop = this.win.document.body;
+    let node: Element | null = this.anchor;
+    for (let depth = 0; node && node !== stop && depth < 5; depth++) {
+      const value = this.win.getComputedStyle(node).borderTopLeftRadius;
+      if (value && value !== "0px" && value !== "0") return value;
+      node = node.parentElement;
+    }
+    return "";
+  }
+
   sync() {
     if (this.disposed) return;
     const rect = this.anchor.getBoundingClientRect();
@@ -63,6 +83,7 @@ export class TabSurface {
       width: `${rect.width}px`,
       height: `${rect.height}px`,
     });
+    this.element.style.borderRadius = this.panelRadius();
   }
 
   destroy() {

@@ -16,6 +16,11 @@ export const homeStyle = String.raw`
    * the viewport. */
   container-type: inline-size;
   color: var(--b3-theme-on-background);
+  /* Corner steps, same three the light-DOM sheet uses. Declared here as well
+   * because this sheet must not depend on the other one being loaded. */
+  --sb-radius-s: var(--b3-border-radius-s, 3px);
+  --sb-radius: var(--b3-border-radius, 6px);
+  --sb-radius-b: var(--b3-border-radius-b, 12px);
 }
 *, *::before, *::after { box-sizing: border-box; }
 button, input { font: inherit; color: inherit; }
@@ -61,7 +66,7 @@ svg { display: block; }
   list-style: none;
   cursor: pointer;
   border: 1px solid var(--b3-border-color);
-  border-radius: 8px;
+  border-radius: var(--sb-radius);
   color: var(--b3-theme-on-background);
 }
 .customize > summary::-webkit-details-marker { display: none; }
@@ -75,7 +80,7 @@ svg { display: block; }
   max-width: 78cqi;
   padding: 12px;
   border: 1px solid var(--b3-border-color);
-  border-radius: 10px;
+  border-radius: var(--sb-radius-b);
   background-color: var(--b3-theme-background);
   box-shadow: var(--b3-dialog-shadow);
 }
@@ -101,7 +106,7 @@ svg { display: block; }
   height: 36px;
   padding: 0 12px;
   border: 1px solid var(--b3-border-color);
-  border-radius: 9px;
+  border-radius: var(--sb-radius);
   background-color: var(--b3-theme-surface);
   color: var(--b3-theme-on-surface);
 }
@@ -123,7 +128,7 @@ svg { display: block; }
   font-size: 13px;
   cursor: pointer;
   border: 1px solid var(--b3-border-color);
-  border-radius: 9px;
+  border-radius: var(--sb-radius);
   background-color: transparent;
 }
 .search > button:hover { background-color: rgba(127, 127, 127, 0.08); }
@@ -163,7 +168,7 @@ svg { display: block; }
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--sb-radius);
   background-color: transparent;
   color: var(--b3-theme-on-surface);
   cursor: pointer;
@@ -183,7 +188,7 @@ svg { display: block; }
   /* The trailing padding is the hover cluster's home: it floats there, so a row
    * without actions and a row with them put the timestamp in the same place. */
   padding: 4px 50px 4px 4px;
-  border-radius: 7px;
+  border-radius: var(--sb-radius);
 }
 .row:hover { background-color: rgba(127, 127, 127, 0.09); }
 .row-link {
@@ -203,7 +208,7 @@ svg { display: block; }
   flex-shrink: 0;
   width: 22px;
   height: 22px;
-  border-radius: 5px;
+  border-radius: var(--sb-radius-s);
   background-color: var(--b3-theme-surface);
   color: var(--b3-theme-on-surface);
   font-size: 12px;
@@ -246,7 +251,7 @@ svg { display: block; }
 .row-actions .icon-button {
   width: 22px;
   height: 22px;
-  border-radius: 5px;
+  border-radius: var(--sb-radius-s);
   color: var(--b3-theme-on-surface);
   opacity: 0;
   transition: opacity 120ms ease;
@@ -290,7 +295,7 @@ svg { display: block; }
   gap: 8px;
   min-height: 32px;
   padding: 2px 4px;
-  border-radius: 6px;
+  border-radius: var(--sb-radius);
 }
 .sb-home-drag { display: flex; padding: 4px 0; cursor: grab; color: var(--b3-theme-on-surface); }
 .sb-home-toggle {
@@ -306,5 +311,5 @@ svg { display: block; }
 .sb-home-drop { outline: 1px solid var(--b3-theme-primary); }
 .sb-home-setting { display: flex; flex-wrap: wrap; gap: 8px; }
 input[type="checkbox"] { accent-color: var(--b3-theme-primary); }
-.sb-home-setting input { flex: 1; min-width: 150px; height: 30px; padding: 0 8px; border: 1px solid var(--b3-border-color); border-radius: 6px; background-color: transparent; }
+.sb-home-setting input { flex: 1; min-width: 150px; height: 30px; padding: 0 8px; border: 1px solid var(--b3-border-color); border-radius: var(--sb-radius); background-color: transparent; }
 `;

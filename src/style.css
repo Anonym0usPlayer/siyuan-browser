@@ -1,9 +1,23 @@
+/* Corner geometry belongs to the host theme. Daylight exposes three steps —
+ * --b3-border-radius-s / --b3-border-radius / --b3-border-radius-b at 3 / 6 /
+ * 12 px — and a theme that rounds its panels raises them. Every surface the
+ * plugin draws uses one of these aliases instead of a literal radius, so the
+ * browser follows the theme it sits in. The fallbacks are daylight's numbers,
+ * which keeps an unthemed host looking exactly as it did. */
+:root {
+  --sb-radius-s: var(--b3-border-radius-s, 3px);
+  --sb-radius: var(--b3-border-radius, 6px);
+  --sb-radius-b: var(--b3-border-radius-b, 12px);
+}
 .sb-browser-anchor {
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
 }
+/* The panel is a body-level overlay, so the host's own rounded panel cannot
+ * clip it: tab-surface.ts copies the surrounding panel's border-radius onto
+ * this element, and the hidden overflow below clips the guest to that shape. */
 .sb-browser {
   container-type: inline-size;
   width: 100%;
@@ -254,7 +268,7 @@
   gap: 10px;
   padding: 9px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--sb-radius);
 }
 .sb-suggestion-icon {
   flex: 0 0 20px;
@@ -312,7 +326,7 @@
   gap: 8px;
   min-height: 32px;
   padding: 2px 4px;
-  border-radius: 6px;
+  border-radius: var(--sb-radius);
 }
 .sb-home-layout-row > button {
   display: grid;
@@ -375,7 +389,7 @@
   box-sizing: border-box;
   padding: 14px;
   border: 1px solid var(--b3-border-color);
-  border-radius: 14px;
+  border-radius: var(--sb-radius-b);
   background: var(--b3-theme-background);
   box-shadow: 0 6px 24px #0003;
   display: flex;
@@ -445,7 +459,7 @@
   border: 1px solid var(--b3-theme-primary-lighter);
   background: var(--b3-theme-primary-lightest);
   color: var(--b3-theme-primary);
-  border-radius: 8px;
+  border-radius: var(--sb-radius);
   overflow-wrap: anywhere;
 }
 .sb-page-menu > button {
@@ -539,7 +553,7 @@
   height: 24px;
   padding: 4px;
   border: 0;
-  border-radius: var(--b3-border-radius, 4px);
+  border-radius: var(--sb-radius);
   box-shadow: none;
   background: transparent;
   flex-shrink: 0;
@@ -576,7 +590,7 @@
   display: flex;
   align-items: center;
   margin: 0;
-  border-radius: var(--b3-border-radius, 4px);
+  border-radius: var(--sb-radius);
   box-shadow: none;
   color: var(--b3-theme-on-background);
   min-width: 0;
@@ -641,7 +655,7 @@
 .sb-dock .sb-dock-row {
   appearance: none;
   margin: 1px 0;
-  border-radius: var(--b3-border-radius, 4px);
+  border-radius: var(--sb-radius);
   box-shadow: none;
   display: flex;
   flex-direction: column;
@@ -741,7 +755,7 @@
   min-height: 120px;
   overflow: auto;
   border: 1px solid var(--b3-border-color);
-  border-radius: 6px;
+  border-radius: var(--sb-radius);
   padding: 6px;
   margin: 8px 0;
 }
@@ -751,7 +765,7 @@
 .sb-destination-row {
   display: flex;
   align-items: center;
-  border-radius: 4px;
+  border-radius: var(--sb-radius-s);
   min-height: 30px;
 }
 .sb-destination-row:hover {
