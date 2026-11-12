@@ -1,4 +1,5 @@
 import { contextMenuPosition } from "./context-menu";
+import { TabSurface } from "./tab-surface";
 import { enhancedClipboard } from "./copy";
 import { selectedContent, type CopySelection } from "./copy-selection";
 import { addressCandidates, inlineCompletion } from "./omnibox";
@@ -33,6 +34,7 @@ import type BrowserPlugin from "./index";
 export class BrowserView {
   web: any;
   root: HTMLElement;
+  surface: TabSurface;
   bar = element("input", "b3-text-field sb-address");
   errorPage = element("div", "sb-error");
   status = element("span", "sb-status");
@@ -86,8 +88,8 @@ export class BrowserView {
     public custom: any,
     public data: any,
   ) {
-    this.root = custom.element;
-    this.root.classList.add("sb-browser");
+    this.surface = new TabSurface(custom.element);
+    this.root = this.surface.element;
     setTabFavicon(custom.tab.headElement);
     const p = plugin;
     this.url = data.url || HOME_URL;
@@ -437,7 +439,15 @@ export class BrowserView {
       clearSuggestions();
       this.bar.value = this.addressValue();
     });
-    this.root.addEventListener("pointerdown", () => (p.active = this));
+    const activate = () => {
+      p.active = this;
+      if (!custom.tab.headElement.classList.contains("item--focus"))
+        custom.tab.headElement.click();
+      // The surface lives outside the native panel. Keep SiYuan's pane focus
+      // handling (registered on that panel) working for toolbar/guest clicks.
+      custom.element.click();
+    };
+    this.root.addEventListener("pointerdown", activate);
     this.reader.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       const target = e.target as HTMLElement;
@@ -462,6 +472,7 @@ export class BrowserView {
     }
     try {
       this.web = p.adapter.create(data.archive);
+      this.web.addEventListener("focus", activate);
     } catch (error) {
       this.syncPage(this.url);
       if (!internalPage(this.url)) this.showError("host", String(error));
@@ -1386,6 +1397,7 @@ export class BrowserView {
     } catch {}
     this.web?.remove();
     this.root.replaceChildren();
+    this.surface.destroy();
     this.plugin.views.delete(this);
     this.plugin.refreshDocks();
     if (

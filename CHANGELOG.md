@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.6 — 2026-11-12
+
+- Let native tab drags reach split targets immediately, without first crossing the browser toolbar.
+- Keep browser surfaces connected when SiYuan moves or splits tab panels, preserving the live webpage, unsaved input and scroll position.
+- Synchronize inactive-tab visibility in background windows and forward browser interactions to native pane focus handling.
+
+Validation: 57 automated tests, typecheck and package verification passed. macOS SiYuan 3.8.10 host integration checks preserved guest identity, input and scroll state through splits and tab moves with no new main-frame navigation. Synthetic drag events reached all four split targets. Physical mouse dragging, other desktop platforms, cross-window transfers and other themes remain unverified.
+
 ## 0.1.5 — 2026-11-11
 
 - Add a userscript manager with metadata review, disabled-by-default installation, per-workspace storage, explicit GM grants, isolated execution, pinned HTTPS dependencies and execution logs. See [supported APIs and limitations](docs/USERSCRIPTS.md).

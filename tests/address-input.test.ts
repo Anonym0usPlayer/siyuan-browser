@@ -4,8 +4,17 @@ import { build } from "esbuild";
 import { JSDOM } from "jsdom";
 
 test("address editing and IME confirmation do not navigate; explicit Enter does", async () => {
-  const dom = new JSDOM("<!doctype html><body></body>");
-  Object.assign(globalThis, { document: dom.window.document });
+  const dom = new JSDOM("<!doctype html><body></body>", {
+    pretendToBeVisual: true,
+  });
+  Object.assign(globalThis, {
+    document: dom.window.document,
+    MutationObserver: dom.window.MutationObserver,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+  });
   const result = await build({
     entryPoints: ["src/view.ts"],
     bundle: true,

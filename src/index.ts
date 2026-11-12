@@ -56,6 +56,7 @@ import {
 import { api, upload, bytes } from "./api";
 import { runSave, SaveJob } from "./archive";
 import "./style.css";
+import { watchTabDrag } from "./tab-surface";
 export default class BrowserPlugin extends Plugin {
   config: Config = readConfig(undefined);
   adapter!: DesktopBrowserAdapter;
@@ -71,6 +72,7 @@ export default class BrowserPlugin extends Plugin {
   jobs: SaveJob[] = [];
   saving = false;
   closing = false;
+  stopTabDrag?: () => void;
   timer?: ReturnType<typeof setTimeout>;
   ready: Promise<void> = Promise.resolve();
   pending: any[] = [];
@@ -80,6 +82,7 @@ export default class BrowserPlugin extends Plugin {
   }
   onload() {
     if (!["desktop", "desktop-window"].includes(getFrontend())) return;
+    this.stopTabDrag = watchTabDrag(document);
     const p = this;
     this.addIcons(
       '<symbol id="iconBrowser" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 16h26M16 3c-9 8-9 18 0 26M16 3c9 8 9 18 0 26" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="iconBrowserHome" viewBox="0 0 32 32"><path d="M3 15L16 4l13 11M7 13v15h18V13M12 28V18h8v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>',
@@ -1199,6 +1202,7 @@ export default class BrowserPlugin extends Plugin {
   }
   async onunload() {
     this.closing = true;
+    this.stopTabDrag?.();
     this.bookmarkTabs.clear();
     this.documentIcons.dispose();
     this.outline?.destroy();

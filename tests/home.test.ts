@@ -114,6 +114,7 @@ test("frequency counts navigation only; title updates preserve counts/time and c
 test("homepage navigation, close/reopen and section changes integrate with browser lifecycle", async () => {
   const dom = new JSDOM("<!doctype html><body></body>", {
     url: "https://siyuan.local",
+    pretendToBeVisual: true,
   });
   Object.assign(globalThis, {
     document: dom.window.document,
