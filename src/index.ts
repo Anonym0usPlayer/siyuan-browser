@@ -1,8 +1,20 @@
+import {
+  snapshot,
+  snapshotBody,
+  snapshotStatus,
+  SNAPSHOT_TIME,
+  SNAPSHOT_HASH,
+} from "./bookmark-snapshot";
+import { DocumentIconRefresh } from "./document-icon";
+import { userScriptManager } from "./userscripts/ui";
+import { documentTree, type TreeDestination } from "./document-tree";
+import { bookmarkURL, createBookmarkNote } from "./bookmark-note";
 import { installDockSearch } from "./dock-search";
 import { chooseDestination, resolveParentPath } from "./destination";
 import {
   Plugin,
   Setting,
+  Menu,
   openTab,
   openWindow,
   showMessage,
@@ -23,6 +35,8 @@ import {
   HOME_URL,
   migrateInternalURL,
   type ClosedEntry,
+  type Entry,
+  type HomeSection,
 } from "./core";
 import { homeLayoutControls } from "./home";
 import { FaviconCache, FAVICON_BYTES, storedFavicon } from "./favicon";
@@ -41,6 +55,7 @@ import {
 import { api, upload, bytes } from "./api";
 import { runSave, SaveJob } from "./archive";
 import "./style.css";
+import { watchTabDrag } from "./tab-surface";
 export default class BrowserPlugin extends Plugin {
   config: Config = readConfig(undefined);
   adapter!: DesktopBrowserAdapter;
@@ -56,6 +71,7 @@ export default class BrowserPlugin extends Plugin {
   jobs: SaveJob[] = [];
   saving = false;
   closing = false;
+  stopTabDrag?: () => void;
   timer?: ReturnType<typeof setTimeout>;
   ready: Promise<void> = Promise.resolve();
   pending: any[] = [];
@@ -65,6 +81,7 @@ export default class BrowserPlugin extends Plugin {
   }
   onload() {
     if (!["desktop", "desktop-window"].includes(getFrontend())) return;
+    this.stopTabDrag = watchTabDrag(document);
     const p = this;
     this.addIcons(
       '<symbol id="iconBrowser" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 16h26M16 3c-9 8-9 18 0 26M16 3c9 8 9 18 0 26" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="iconBrowserHome" viewBox="0 0 32 32"><path d="M3 15L16 4l13 11M7 13v15h18V13M12 28V18h8v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>',
@@ -140,6 +157,8 @@ export default class BrowserPlugin extends Plugin {
       this.t("outlineLoading"),
       (fn) => this.guard(fn),
     );
+    this.eventBus.on("loaded-protyle-static", this.openBookmarkNote);
+    this.eventBus.on("switch-protyle", this.openBookmarkNote);
     this.eventBus.on("open-link", this.openLink);
     return this.ready;
   }
@@ -192,6 +211,264 @@ export default class BrowserPlugin extends Plugin {
       this.refreshDocks();
     });
   }
+  private documentIcons = new DocumentIconRefresh();
+  private bookmarkTabs = new Map<string, any>();
+  private bookmarkTabPending = new Map<string, Promise<any>>();
+  async openBookmarkTab(id: string, url: string) {
+    const pending = this.bookmarkTabPending.get(id);
+    if (pending) return pending;
+    const existing =
+      this.bookmarkTabs.get(id) ||
+      [...this.views].find(
+        (v) => !v.disposed && v.custom.data?.bookmarkDocId === id,
+      )?.custom.tab;
+    if (existing?.headElement?.isConnected) {
+      existing.parent.switchTab(existing.headElement);
+      return existing;
+    }
+    this.bookmarkTabs.delete(id);
+    const opening = this.open(url, undefined, false, false, id)
+      .then((tab) => {
+        if (tab) this.bookmarkTabs.set(id, tab);
+        return tab;
+      })
+      .finally(() => this.bookmarkTabPending.delete(id));
+    this.bookmarkTabPending.set(id, opening);
+    return opening;
+  }
+  async updateBookmarkIcon(id: string, source: string, favicon: string) {
+    if (!httpURL(favicon)) return;
+    const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+      id,
+    });
+    const target = bookmarkURL(attrs);
+    // Do not change the bookmark's icon after navigating to another site.
+    if (!target || new URL(target).origin !== new URL(source).origin) return;
+    if (attrs.icon !== favicon)
+      await api("attr/setBlockAttrs", { id, attrs: { icon: favicon } });
+    this.documentIcons.update(id, favicon);
+  }
+  private bookmarkOpening = new WeakSet<object>();
+  openBookmarkNote = (event: CustomEvent) => {
+    const protyle = event.detail?.protyle;
+    const id = protyle?.block?.rootID;
+    const tab = protyle?.model?.parent;
+    // Ignore previews, background editors and duplicate lifecycle notifications.
+    if (
+      !id ||
+      !tab ||
+      !protyle.element?.isConnected ||
+      protyle.element.closest(".fn__none") ||
+      this.bookmarkOpening.has(protyle)
+    )
+      return;
+    this.bookmarkOpening.add(protyle);
+    this.guard(async () => {
+      try {
+        const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+          id,
+        });
+        const url = bookmarkURL(attrs);
+        if (
+          !url ||
+          this.closing ||
+          protyle.block.rootID !== id ||
+          !protyle.element.isConnected ||
+          protyle.element.closest(".fn__none")
+        )
+          return;
+        const status = snapshotStatus(attrs);
+        if (status) showMessage(status, 10000);
+        const opened = await this.openBookmarkTab(id, url);
+        const view = [...this.views].find((v) => v.custom.tab === opened);
+        if (view && !view.loading) void this.checkBookmarkSnapshot(view);
+        if (!this.closing && protyle.block.rootID === id) tab.close();
+      } finally {
+        this.bookmarkOpening.delete(protyle);
+      }
+    });
+  };
+  private checkingSnapshots = new Set<string>();
+  async checkBookmarkSnapshot(view: BrowserView) {
+    const id = view.custom.data?.bookmarkDocId;
+    if (!id || view.disposed || view.loading || this.checkingSnapshots.has(id))
+      return;
+    this.checkingSnapshots.add(id);
+    try {
+      const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+        id,
+      });
+      const url = bookmarkURL(attrs);
+      if (!url || view.url !== url) return;
+      const current = await snapshot(await view.article());
+      if (view.disposed || view.url !== url || this.closing) return;
+      const message = snapshotStatus(attrs, current.hash);
+      if (message) showMessage(message, 10000);
+    } catch {
+      if (!view.disposed && !this.closing)
+        showMessage(
+          "暂时无法核验书签快照，请等待网页加载完成后从菜单检查。",
+          7000,
+        );
+    } finally {
+      this.checkingSnapshots.delete(id);
+    }
+  }
+  async updateBookmarkSnapshot(view: BrowserView) {
+    const id = view.custom.data?.bookmarkDocId;
+    if (!id) return;
+    const attrs = await api<Record<string, string>>("attr/getBlockAttrs", {
+      id,
+    });
+    const url = bookmarkURL(attrs);
+    if (!url || view.url !== url || view.loading)
+      throw Error("请返回书签原网页并等待加载完成后更新快照");
+    const article = await view.article();
+    if (article.url !== url || view.url !== url)
+      throw Error("网页已切换，请重试");
+    const content = await snapshot(article);
+    await api("block/appendBlock", {
+      parentID: id,
+      dataType: "markdown",
+      data: snapshotBody(url, content),
+    });
+    await api("attr/setBlockAttrs", {
+      id,
+      attrs: {
+        [SNAPSHOT_TIME]: content.updated,
+        [SNAPSHOT_HASH]: content.hash,
+      },
+    });
+    showMessage("书签 Markdown 快照已更新，历史内容已保留。");
+  }
+  async captureBookmark(url: string) {
+    let view = [...this.views].find(
+      (v) => !v.disposed && v.url === url && v.web,
+    );
+    if (!view) {
+      const tab = await this.open(url);
+      const deadline = Date.now() + 20000;
+      while (!view && Date.now() < deadline && !this.closing) {
+        await new Promise((r) => setTimeout(r, 100));
+        view = [...this.views].find(
+          (v) => !v.disposed && v.custom.tab === tab && v.web,
+        );
+      }
+    }
+    if (!view) throw Error("请先打开网页并完成登录，再保存书签快照");
+    const deadline = Date.now() + 20000;
+    while (
+      view.loading &&
+      Date.now() < deadline &&
+      !view.disposed &&
+      !this.closing
+    )
+      await new Promise((r) => setTimeout(r, 100));
+    if (view.loading || view.disposed || this.closing || view.url !== url)
+      throw Error("请等待原网页加载完成后重试");
+    const article = await view.article();
+    if (article.url !== url || view.url !== url)
+      throw Error("网页地址已改变，请在当前网页重新保存");
+    return snapshot(article);
+  }
+  async saveBookmarkNote(url: string, title: string) {
+    if (!httpURL(url)) return;
+    const live = [...this.views].find(
+      (v) => !v.disposed && v.url === url && v.web,
+    );
+    if (live) {
+      const current = await live.web
+        .executeJavaScript("document.title")
+        .catch(() => "");
+      if (live.url === url && typeof current === "string" && current.trim())
+        title = current.trim();
+    }
+    const { notebooks } = await api("notebook/lsNotebooks", {});
+    let preferred = this.config.bookmarkNotebook || this.config.notebook;
+    let restorePath: string | undefined;
+    if (this.config.bookmarkParentID) {
+      try {
+        const current = await api<{ notebook: string; path: string }>(
+          "filetree/getPathByID",
+          { id: this.config.bookmarkParentID },
+        );
+        preferred = current.notebook;
+        restorePath = current.path;
+      } catch {
+        /* Deleted destinations fall back to the notebook root. */
+      }
+    }
+    const d = dialog(this.t("saveBookmarkNote"));
+    const name = element("input", "b3-text-field");
+    name.value = title || new URL(url).hostname;
+    let destination: TreeDestination | undefined;
+    const preview = element("div", "sb-save-preview");
+    const tree = documentTree(
+      notebooks,
+      preferred,
+      (value) => {
+        destination = value;
+        preview.textContent = this.t("selectedDestination") + value.label;
+      },
+      (key) => this.t(key),
+      restorePath,
+    );
+    const remember = element("input");
+    remember.type = "checkbox";
+    remember.checked = true;
+    const rememberLabel = element("label");
+    rememberLabel.append(
+      remember,
+      document.createTextNode(" " + this.t("rememberSaveLocation")),
+    );
+    const error = element("div", "ft__error");
+    const save = button(this.t("save"), () => {
+      save.disabled = true;
+      void (async () => {
+        try {
+          if (!destination) throw Error(this.t("notebook"));
+          const target = destination;
+          const parent = target.id
+            ? await api<string>("filetree/getHPathByID", { id: target.id })
+            : "/";
+          const favicon =
+            storedFavicon(this.config, url) ||
+            new URL("/favicon.ico", url).href;
+          const content = await this.captureBookmark(url);
+          const savedID = await createBookmarkNote(
+            target.notebook,
+            parent,
+            name.value,
+            url,
+            favicon,
+            content,
+          );
+          this.documentIcons.update(savedID, favicon);
+          if (remember.checked) {
+            this.config.bookmarkNotebook = target.notebook;
+            this.config.bookmarkParentID = target.id || "";
+            this.persist();
+          }
+          d.dialog.destroy();
+          showMessage(this.t("bookmarkNoteSaved"));
+        } catch (e) {
+          error.textContent = String(e);
+          save.disabled = false;
+        }
+      })();
+    });
+    d.body.append(
+      field(this.t("articleTitle"), name),
+      element("strong", "", this.t("savePath")),
+      tree,
+      preview,
+      rememberLabel,
+      element("p", "ft__on-surface", this.t("bookmarkNoteHint")),
+      error,
+      button(this.t("cancel"), () => d.dialog.destroy()),
+      save,
+    );
+  }
   openLink = (e: CustomEvent) => {
     const href = e.detail?.href;
     if (this.config.takeover && httpURL(href)) {
@@ -207,6 +484,7 @@ export default class BrowserPlugin extends Plugin {
     position?: "right" | "bottom",
     background = false,
     newWindow = false,
+    bookmarkDocId?: string,
   ) {
     await this.ready;
     if (this.closing) return;
@@ -219,6 +497,7 @@ export default class BrowserPlugin extends Plugin {
         data: {
           url: address(migrateInternalURL(url), this.searchTemplate()),
           instanceId: crypto.randomUUID(),
+          ...(bookmarkDocId ? { bookmarkDocId } : {}),
         },
       },
       position,
@@ -402,6 +681,45 @@ export default class BrowserPlugin extends Plugin {
   addBookmark(input: string, title: string) {
     const url = this.bookmarkTarget(input);
     this.bookmark(url, title.trim() || new URL(url).hostname);
+  }
+  homeEntryMenu(entry: Entry, section: HomeSection, event: MouseEvent) {
+    const menu = new Menu();
+    menu.addItem({
+      label: this.t("newTab"),
+      icon: "iconBrowser",
+      click: async () => {
+        if (section === "recentlyClosed")
+          await this.reopen(entry as ClosedEntry);
+        else await this.open(entry.url);
+      },
+    });
+    menu.addItem({
+      label: this.t("right"),
+      click: async () => {
+        await this.open(entry.url, "right");
+      },
+    });
+    menu.addItem({
+      label: this.t("external"),
+      click: () => this.adapter.external(entry.url),
+    });
+    menu.addItem({
+      label: this.t("copyLink"),
+      click: () => window.require("electron").clipboard.writeText(entry.url),
+    });
+    menu.addItem({
+      label: this.t("saveBookmarkNote"),
+      icon: "iconSave",
+      click: () =>
+        this.guard(() => this.saveBookmarkNote(entry.url, entry.title)),
+    });
+    if (section !== "bookmarks")
+      menu.addItem({
+        label: this.t("bookmark"),
+        icon: "iconBookmark",
+        click: () => this.bookmark(entry.url, entry.title),
+      });
+    menu.open({ x: event.clientX, y: event.clientY });
   }
   bookmark(url: string, title: string) {
     if (!httpURL(url)) return;
@@ -594,6 +912,9 @@ export default class BrowserPlugin extends Plugin {
     this.makeSettings();
     super.openSetting();
   }
+  showUserScripts() {
+    userScriptManager(this);
+  }
   makeSettings() {
     this.setting = new Setting({
       confirmCallback: () => {
@@ -611,6 +932,13 @@ export default class BrowserPlugin extends Plugin {
       i.onchange = () => (this.config[key] = i.checked);
       return i;
     };
+    this.setting.addItem({
+      title: this.t("userScripts"),
+      description: this.t("scriptScope"),
+      actionElement: button(this.t("userScripts"), () =>
+        this.showUserScripts(),
+      ),
+    });
     for (const key of ["takeover", "adblock"] as const)
       this.setting.addItem({
         title: this.t(key),
@@ -915,10 +1243,15 @@ export default class BrowserPlugin extends Plugin {
   }
   async onunload() {
     this.closing = true;
+    this.stopTabDrag?.();
+    this.bookmarkTabs.clear();
+    this.documentIcons.dispose();
     this.outline?.destroy();
     this.favicons.dispose();
     clearTimeout(this.timer);
     for (const j of this.jobs) j.cancelled = true;
+    this.eventBus.off("loaded-protyle-static", this.openBookmarkNote);
+    this.eventBus.off("switch-protyle", this.openBookmarkNote);
     this.eventBus.off("open-link", this.openLink);
     for (const v of [...this.views]) v.destroy();
     await Promise.allSettled([

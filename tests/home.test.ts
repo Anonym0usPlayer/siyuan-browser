@@ -114,6 +114,7 @@ test("frequency counts navigation only; title updates preserve counts/time and c
 test("homepage navigation, close/reopen and section changes integrate with browser lifecycle", async () => {
   const dom = new JSDOM("<!doctype html><body></body>", {
     url: "https://siyuan.local",
+    pretendToBeVisual: true,
   });
   Object.assign(globalThis, {
     document: dom.window.document,
@@ -558,6 +559,24 @@ test("homepage navigation, close/reopen and section changes integrate with brows
         '[data-section="history"] [aria-label^="editBookmark"]',
       ),
       null,
+    );
+    // A right-click on a row opens the entry menu and never the host's own menu:
+    // it is the only entry point to the bookmark note and snapshot actions.
+    let menuCall: { entry: any; section: string; event: MouseEvent } | undefined;
+    p.homeEntryMenu = ((entry: any, section: string, event: MouseEvent) => {
+      menuCall = { entry, section, event };
+    }) as typeof p.homeEntryMenu;
+    bookmarkRow("https://moved.example/path")
+      .querySelector("a")!
+      .dispatchEvent(
+        new dom.window.MouseEvent("contextmenu", { cancelable: true }),
+      );
+    assert.equal(menuCall?.section, "bookmarks");
+    assert.equal(menuCall?.entry.url, "https://moved.example/path");
+    assert.equal(
+      menuCall?.event.defaultPrevented,
+      true,
+      "the host menu must not open on top",
     );
     const closed = mount("https://closed.example/");
     closed.web.emitTitle("Closed page");

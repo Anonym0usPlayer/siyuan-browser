@@ -67,6 +67,8 @@ export interface Config {
   adblock: boolean;
   subscriptions: string[];
   updateDays: number;
+  bookmarkNotebook?: string;
+  bookmarkParentID?: string;
   notebook: string;
   parentPath: string;
   savePathMode: "search" | "template";
@@ -228,6 +230,8 @@ export function readConfig(raw: unknown): Config {
     "engine",
     "customSearch",
     "notebook",
+    "bookmarkNotebook",
+    "bookmarkParentID",
     "parentPath",
     "pathTemplate",
     "databaseID",

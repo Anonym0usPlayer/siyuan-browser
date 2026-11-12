@@ -1,3 +1,4 @@
+import { TabSurface } from "./tab-surface";
 import { enhancedClipboard } from "./copy";
 import { selectedContent, type CopySelection } from "./copy-selection";
 import { addressCandidates, inlineCompletion } from "./omnibox";
@@ -33,6 +34,7 @@ const UNTITLED = "Browser";
 export class BrowserView {
   web: any;
   root: HTMLElement;
+  surface: TabSurface;
   bar = element("input", "b3-text-field sb-address");
   errorPage = element("div", "sb-error");
   status = element("span", "sb-status");
@@ -89,8 +91,8 @@ export class BrowserView {
     public custom: any,
     public data: any,
   ) {
-    this.root = custom.element;
-    this.root.classList.add("sb-browser");
+    this.surface = new TabSurface(custom.element);
+    this.root = this.surface.element;
     setTabFavicon(custom.tab.headElement);
     const p = plugin;
     this.url = migrateInternalURL(data.url || HOME_URL);
@@ -441,7 +443,15 @@ export class BrowserView {
       clearSuggestions();
       this.bar.value = this.addressValue();
     });
-    this.root.addEventListener("pointerdown", () => (p.active = this));
+    const activate = () => {
+      p.active = this;
+      if (!custom.tab.headElement.classList.contains("item--focus"))
+        custom.tab.headElement.click();
+      // The surface lives outside the native panel. Keep SiYuan's pane focus
+      // handling (registered on that panel) working for toolbar/guest clicks.
+      custom.element.click();
+    };
+    this.root.addEventListener("pointerdown", activate);
     if (p.adapter.reason) {
       this.syncPage(this.url);
       if (!internalPage(this.url)) this.showError("host", p.adapter.reason);
@@ -450,6 +460,7 @@ export class BrowserView {
     }
     try {
       this.web = p.adapter.create(data.archive);
+      this.web.addEventListener("focus", activate);
     } catch (error) {
       this.syncPage(this.url);
       if (!internalPage(this.url)) this.showError("host", String(error));
@@ -525,6 +536,7 @@ export class BrowserView {
     });
     this.web.addEventListener("did-stop-loading", () => {
       this.setLoading(false);
+      if (custom.data?.bookmarkDocId) void p.checkBookmarkSnapshot(this);
       if (!this.status.textContent?.startsWith(p.t("failed")))
         this.status.textContent = "";
       this.updateNavigation();
@@ -586,6 +598,12 @@ export class BrowserView {
           if (src && !this.disposed && epoch === this.faviconEpoch) {
             setTabFavicon(custom.tab.headElement, src);
             p.updateFavicon(this.url, url);
+            if (custom.data?.bookmarkDocId)
+              await p.updateBookmarkIcon(
+                custom.data.bookmarkDocId,
+                this.url,
+                url,
+              );
           }
         });
       }
@@ -1260,6 +1278,35 @@ export class BrowserView {
     });
     const add = (label: string, fn: () => void) =>
       m.addItem({ label, click: fn });
+    add(p.t("userScripts"), () => p.showUserScripts());
+    if (this.web && !this.data.archive && httpURL(this.url)) {
+      for (const command of p.adapter.bridge.userScriptCommands(
+        p.adapter.partition,
+        this.web.getWebContentsId(),
+      ))
+        add(command.label, () =>
+          p.guard(async () =>
+            p.adapter.bridge.userScriptCommand(
+              p.adapter.partition,
+              this.web.getWebContentsId(),
+              command.token,
+              command.id,
+            ),
+          ),
+        );
+    }
+    if (httpURL(this.url))
+      add(p.t("saveBookmarkNote"), () =>
+        p.guard(() => p.saveBookmarkNote(this.url, this.title)),
+      );
+    if (this.custom.data?.bookmarkDocId) {
+      add(p.t("checkBookmarkSnapshot"), () =>
+        p.guard(() => p.checkBookmarkSnapshot(this)),
+      );
+      add(p.t("updateBookmarkSnapshot"), () =>
+        p.guard(() => p.updateBookmarkSnapshot(this)),
+      );
+    }
     add(p.t("browserHome"), () => this.navigate(HOME_URL));
     if (p.config.recentlyClosed?.[0])
       add(p.t("reopenClosed"), () =>
@@ -1314,6 +1361,7 @@ export class BrowserView {
     } catch {}
     this.web?.remove();
     this.root.replaceChildren();
+    this.surface.destroy();
     this.plugin.views.delete(this);
     this.plugin.refreshDocks();
     if (

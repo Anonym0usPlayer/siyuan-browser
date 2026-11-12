@@ -93,11 +93,13 @@ test("sandboxed preload intercepts trusted page copy and leaves editable/synthet
     onCopy = fn;
   }) as any;
   runInNewContext(bundle.outputFiles[0].text, {
+    window: local.window,
+    location: local.window.location,
     document: localDoc,
     require(name: string) {
       assert.equal(name, "electron");
       return {
-        ipcRenderer: { sendToHost: (...args: any[]) => sent.push(args) },
+        ipcRenderer: { sendToHost: (...args: any[]) => sent.push(args), on() {}, invoke: async () => [] },
       };
     },
   });

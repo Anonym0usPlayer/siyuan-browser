@@ -142,12 +142,7 @@ export async function runSave(
       : "");
   try {
     if (!job.docId) {
-      const title =
-        safeTitle(job.article.title) +
-        " " +
-        new Date(job.created).toISOString().replace(/[:.]/g, "-") +
-        " " +
-        job.id.slice(0, 6);
+      const title = safeTitle(job.article.title);
       if (!job.targetId) {
         job.targetId =
           new Date(job.created).toISOString().replace(/\D/g, "").slice(0, 14) +

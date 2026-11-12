@@ -24,6 +24,8 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 - **Enhanced copy**: paste web or reader selections into SiYuan blocks, preserving supported headings, lists, links, code and formulas.
 - **Sessions and filtering**: website cookies use a workspace-specific session isolated from the SiYuan host. Manage filtering subscriptions, temporarily toggle filtering for the current tab, or clear browser data.
 
+**New in v0.1.7:** a userscript manager under More → User scripts. See [supported APIs, usage and limitations](docs/USERSCRIPTS.md).
+
 ## Installation
 
 Requires the **SiYuan desktop app 3.8.8 or newer**. The manifest targets macOS, Windows and Linux. The demonstrated workflow was checked on macOS; native Windows/Linux acceptance remains pending. Mobile and browser frontends cannot host the embedded browser. Remote-kernel mode offers a system-browser fallback.
@@ -70,6 +72,12 @@ Select web or reader text, copy with Cmd/Ctrl+C (or the copy item in the host's 
 Open an archive from the save job or its note link. MHTML uses a separate view with scripts and network requests disabled.
 
 ![A real MHTML archive opened in the plugin](docs/screenshots/archive.png)
+
+### Bookmark notes
+
+Choose **Save as bookmark note** in the webpage menu or a browser home entry's context menu, then enter a title and select a notebook root or parent document in the expandable document tree. The resulting SiYuan document appears in the file tree and search results. Opening it with the desktop plugin running opens the webpage in a browser tab. Its body retains a clickable URL when the plugin is disabled.
+
+Only documents with `custom-siyuan-browser-kind=bookmark` and a valid `custom-siyuan-browser-url` redirect; the visible tag is for search only. Remove the kind attribute to restore ordinary note behavior. Bookmark notes include a dated Markdown content snapshot, source URL and provenance guidance for agents. Opening checks extracted content against the saved hash; missing snapshots, changed content or age over seven days prompt review. The webpage menu can check or append a refreshed snapshot while preserving earlier content. Capture time is not the website modification time. Dynamic content and login state can affect comparisons; attachments may still require the network.
 
 ## Common actions
 

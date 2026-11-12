@@ -1,5 +1,8 @@
 import { ipcRenderer } from "electron";
 import { selectedContent } from "./copy-selection";
+import { installUserScripts } from "./userscripts/preload";
+
+installUserScripts();
 
 document.addEventListener(
   "copy",

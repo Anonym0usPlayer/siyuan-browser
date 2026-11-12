@@ -1,3 +1,9 @@
+.sb-browser-anchor {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
 .sb-browser {
   container-type: inline-size;
   width: 100%;
@@ -11,6 +17,15 @@
   position: relative;
   background: var(--b3-theme-background);
   color: var(--b3-theme-on-background);
+}
+/* The panel is a geometry anchor. Never reparent a connected Electron guest. */
+.sb-browser.sb-tab-surface {
+  position: fixed;
+  z-index: 1;
+}
+.sb-tab-dragging .sb-tab-surface,
+.fn__pointer-none .sb-tab-surface {
+  pointer-events: none;
 }
 .sb-toolbar {
   display: flex;
@@ -77,6 +92,10 @@
   min-width: 0;
   align-self: stretch;
   background: white;
+}
+/* SiYuan shields iframes while resizing panes; Electron webviews need the same guard. */
+.fn__pointer-none .sb-webview {
+  pointer-events: none;
 }
 .sb-webview[hidden],
 .sb-reader[hidden],
@@ -700,7 +719,9 @@
 .sy__outline.sb-outline-host > :not(.sb-outline):not(.block__icons) {
   display: none !important;
 }
-.sy__outline.sb-outline-host > .block__icons > :not(.block__logo):not([data-type="min"]) {
+.sy__outline.sb-outline-host
+  > .block__icons
+  > :not(.block__logo):not([data-type="min"]) {
   display: none !important;
 }
 .sb-outline {
@@ -714,3 +735,62 @@
 .sb-outline [role="group"][hidden] {
   display: none;
 }
+
+.sb-destination-tree {
+  max-height: 320px;
+  min-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--b3-border-color);
+  border-radius: 6px;
+  padding: 6px;
+  margin: 8px 0;
+}
+.sb-destination-tree [hidden] {
+  display: none;
+}
+.sb-destination-row {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  min-height: 30px;
+}
+.sb-destination-row:hover {
+  background: var(--b3-list-hover);
+}
+.sb-destination-row[aria-selected="true"] {
+  background: var(--b3-theme-primary-lightest);
+  color: var(--b3-theme-primary);
+}
+.sb-tree-toggle,
+.sb-tree-label {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.sb-tree-toggle {
+  flex: 0 0 26px;
+  padding: 5px;
+}
+.sb-tree-label {
+  flex: 1;
+  min-width: 0;
+  padding: 5px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sb-tree-toggle:focus-visible,
+.sb-tree-label:focus-visible {
+  outline: 2px solid var(--b3-theme-primary);
+  outline-offset: -2px;
+}
+
+.sb-userscripts { max-height: 75vh; overflow: auto; }
+.sb-script-source { min-height: 180px; width: 100%; box-sizing: border-box; font-family: monospace; resize: vertical; margin: 8px 0; }
+.sb-script-row { border-bottom: 1px solid var(--b3-border-color); padding: 12px 0; overflow-wrap: anywhere; }
+.sb-script-row .b3-switch { float: right; }
+.sb-script-row button { margin: 6px 6px 0 0; }
+.sb-script-preview, .sb-script-logs { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto; }

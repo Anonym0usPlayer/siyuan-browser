@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 const fixture = (globalThis as any).__electronFixture;
 export const app = fixture.app;
+export const ipcMain = { handle: () => {}, removeHandler: () => {} };
 export const session = {
   fromPartition: (partition: string) => {
     if (!fixture.sessions.has(partition)) {

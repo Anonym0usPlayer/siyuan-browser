@@ -82,6 +82,12 @@ export function entryRow(
     if (section === "recentlyClosed") void p.reopen(entry as ClosedEntry);
     else void p.open(entry.url, undefined, true);
   });
+  // The entry menu carries the actions that need no room of their own: open in
+  // a split pane, save a bookmark note, and the clipboard helpers.
+  link.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    p.homeEntryMenu(entry, section, event);
+  });
   row.append(link);
   const meta =
     section === "mostVisited"

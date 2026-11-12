@@ -1,6 +1,6 @@
 /* Runs in Electron's main process through @electron/remote.require.
  * All hooks are scoped to plugin partitions. No host/default session mutation. */
-import { app, session, webContents, clipboard, nativeImage } from "electron";
+import { app, session, webContents, clipboard, nativeImage, ipcMain } from "electron";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -8,8 +8,11 @@ import { pathToFileURL } from "node:url";
 import { FiltersEngine, Request } from "@ghostery/adblocker";
 import { httpURL, internalPageFromGuest } from "./core";
 import { loadFilters, normalizeFilters, atomicJSON } from "./filter-store";
+import { UserScriptService, SCRIPT_CHANNEL } from "./userscripts/service";
+import { UserScriptStore } from "./userscripts/store";
 const registry = globalThis as typeof globalThis & {
   __siyuanBrowserSessions?: Map<string, any>;
+  __siyuanBrowserScriptIPC?: boolean;
 };
 const states = (registry.__siyuanBrowserSessions ??= new Map<string, any>());
 let filterWrite: Promise<any> = Promise.resolve();
@@ -60,6 +63,18 @@ export function acquire(
       archives: new Set(),
     };
     states.set(partition, s);
+    const scriptFile = path.join(workspace, "data/storage/petal/siyuan-browser/userscripts.json");
+    s.userScripts = new UserScriptService(new UserScriptStore(scriptFile),
+      (w) => w.session === ses && s.guests.has(w.id) && s.owners.has(w.hostWebContents?.id),
+      (w, url, background) => send(w, { type: "popup", url, background }));
+    if (!registry.__siyuanBrowserScriptIPC) {
+      ipcMain.handle(SCRIPT_CHANNEL, (event: any, message: any) => {
+        const state = [...states.values()].find((v) => v.ses === event.sender.session);
+        if (!state?.userScripts) throw Error("Unknown userscript session");
+        return state.userScripts.rpc(event, message);
+      });
+      registry.__siyuanBrowserScriptIPC = true;
+    }
     ses.setPermissionRequestHandler((_w: any, _p: any, cb: any) => cb(false));
     ses.setPermissionCheckHandler(() => false);
     ses.webRequest.onBeforeRequest(
@@ -108,6 +123,7 @@ export function acquire(
     s.created = (_e: any, w: any) => {
       if (w.session !== ses) return;
       s.guests.add(w.id);
+      s.userScripts.register(w);
       w.setWindowOpenHandler((d: any) => {
         if (httpURL(d.url))
           send(w, {
@@ -458,6 +474,18 @@ export async function clear(partition: string, kind: string) {
     await s.ses.clearAuthCache();
   }
 }
+/** Called only by the trusted plugin renderer through @electron/remote. */
+export function userScripts(partition: string, action: string, payload?: unknown) {
+  const service = states.get(partition)?.userScripts;
+  if (!service) throw Error("Browser session unavailable");
+  return service.manage(action, payload);
+}
+export function userScriptCommands(partition: string, id: number) {
+  return states.get(partition)?.userScripts?.commands(owned(partition, id)) || [];
+}
+export function userScriptCommand(partition: string, id: number, token: string, command: number) {
+  return states.get(partition)?.userScripts?.command(owned(partition, id), token, command);
+}
 export function status(partition: string) {
   const s = states.get(partition);
   return {
@@ -510,7 +538,12 @@ export async function release(partition: string, owner: number) {
       w.close({ waitForBeforeUnload: false });
   }
   if (s.owners.size) return;
+  s.userScripts?.dispose();
   states.delete(partition);
+  if (!states.size && registry.__siyuanBrowserScriptIPC) {
+    ipcMain.removeHandler(SCRIPT_CHANNEL);
+    registry.__siyuanBrowserScriptIPC = false;
+  }
   clearInterval(s.timer);
   s.abort.abort();
   app.removeListener("web-contents-created", s.created);

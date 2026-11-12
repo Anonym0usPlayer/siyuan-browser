@@ -1,9 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.1.7 — 2026-11-12
+
+### Imported from upstream 0.1.3 – 0.1.6
+
+- Save webpages as bookmark notes in the document tree: explicit URL attributes, a clickable link that still works when the plugin is off, a notebook or parent document chosen in an expandable tree with the destination remembered, and site icons reused as document icons. The current page title wins over generic metadata and timestamp suffixes are stripped from saved note titles.
+- Snapshot what a bookmark looked like: bookmark notes carry Markdown content, a capture timestamp and provenance guidance, the snapshot is checked against the page when it opens (missing, changed, or older than seven days), and a new check or refresh appends a dated revision instead of overwriting the earlier content.
+- Add a userscript manager with metadata review, installation disabled by default, per-workspace storage, explicit GM grants, isolated execution, pinned HTTPS dependencies and an execution log — see [docs/USERSCRIPTS.md](docs/USERSCRIPTS.md).
+- Keep browser surfaces alive when SiYuan moves or splits a tab panel, so the live page, unsaved input and scroll position survive; native tab drags reach split targets immediately, inactive tabs respect background-window visibility, and browser clicks hand focus to SiYuan's pane handling.
+- Stop embedded webviews from swallowing pointer events during pane resizing.
+
+### This fork
 
 - Edit a bookmark in a dialog, the way a browser does. The pencil next to the delete button opens a small form with the name and the address already filled in, so a bookmark saved under a useless page title — a login wall, "Just a moment..." — can be renamed and repointed instead of deleted and added again. Saving repoints the bookmark in place and keeps its position, visit count and stored icon unless the host actually changed; a blank name, an unusable address and an address that is already bookmarked keep the dialog open and say why, with the caret left in the field that needs fixing. Enter saves from either field, and Escape or Cancel leaves the entry untouched. The earlier in-place editor is gone along with its problem: it put the caret inside the row's link, where a plain click ran the link's own activation behaviour and opened the page.
 - Shrink the row actions. The buttons were 26 px targets with 16 px glyphs; they are now 22 px targets with 13 px glyphs, in one cluster against the row's right edge at 55% opacity that only reaches full strength under the pointer, so a row reads as text until it is actually hovered.
+- Keep the fork's menu policy while importing the new features: only home rows answer a right-click, because that is where bookmark notes and snapshots are reachable from; the webpage and reader context menus stay removed. Upstream's `src/context-menu.ts` and its regression test went with the menus they served, since nothing else in this fork builds a native menu from a webview point.
 
 ## 0.1.5 — 2026-11-04
 
@@ -31,6 +42,7 @@
 - Report filter problems honestly: "retaining valid cache" only appears when rules actually loaded, with per-URL reasons such as `timeout 30s` instead of a bare abort.
 - Drop every highlight from the toolbar icons. The host's outline button painted a primary ring and turned it into a filled hover and a pressed tint, and pointer presses left a focus ring behind that read as a stuck toggle. Hover, focus, pressed and open states are now flat, and keyboard activation draws no ring either. Disabled history buttons still dim through the host's opacity.
 - Make the "more" icon a real toggle like the reader panel: press once to open, press again to dismiss. The menu anchors under that button instead of the address bar, closes when the page options panel opens, and is dismissed when the tab is closed.
+
 
 ## 0.1.2 — 2026-10-22
 
