@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.10 — 2026-11-16
 
 - Clear save tasks from the task dialog. Each row gets its own quiet "clear" button next to the actions that do something, and the dialog header gets "clear all"; both drop the entry from `jobs.json` — and cancel it first if it is still running, so nothing keeps writing into a document nobody is watching — and both reach every task dialog that happens to be open. The list is rewritten on every progress tick, so the bulk action lives in the header and the empty list says so instead of going blank.
 

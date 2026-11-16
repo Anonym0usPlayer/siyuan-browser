@@ -1,6 +1,6 @@
 {
   "name": "siyuan-browser",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "Workspace-isolated desktop web viewer for SiYuan",
   "scripts": {
