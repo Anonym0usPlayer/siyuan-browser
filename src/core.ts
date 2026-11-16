@@ -61,6 +61,7 @@ export interface ClosedEntry extends Entry {
 export interface Config {
   version: 2;
   takeover: boolean;
+  bazaar: boolean;
   home: string;
   engine: string;
   customSearch: string;
@@ -87,6 +88,7 @@ export interface Config {
 export const defaults: Config = {
   version: 2,
   takeover: true,
+  bazaar: false,
   home: HOME_URL,
   engine: "DuckDuckGo",
   customSearch: "https://duckduckgo.com/?q=%s",
@@ -224,7 +226,7 @@ export function readConfig(raw: unknown): Config {
   };
   if (!raw || typeof raw !== "object") return c;
   const x = raw as Partial<Config>;
-  for (const k of ["takeover", "adblock"] as const)
+  for (const k of ["takeover", "bazaar", "adblock"] as const)
     if (typeof x[k] === "boolean") c[k] = x[k]!;
   for (const k of [
     "engine",

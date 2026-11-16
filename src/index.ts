@@ -56,6 +56,7 @@ import { api, upload, bytes } from "./api";
 import { runSave, SaveJob } from "./archive";
 import "./style.css";
 import { watchTabDrag } from "./tab-surface";
+import { takeoverUILink } from "./link-takeover";
 export default class BrowserPlugin extends Plugin {
   config: Config = readConfig(undefined);
   adapter!: DesktopBrowserAdapter;
@@ -82,6 +83,7 @@ export default class BrowserPlugin extends Plugin {
   onload() {
     if (!["desktop", "desktop-window"].includes(getFrontend())) return;
     this.stopTabDrag = watchTabDrag(document);
+    document.addEventListener("click", this.uiLink, true);
     const p = this;
     this.addIcons(
       '<symbol id="iconBrowser" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 16h26M16 3c-9 8-9 18 0 26M16 3c9 8 9 18 0 26" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="iconBrowserHome" viewBox="0 0 32 32"><path d="M3 15L16 4l13 11M7 13v15h18V13M12 28V18h8v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>',
@@ -478,6 +480,14 @@ export default class BrowserPlugin extends Plugin {
       e.preventDefault();
       this.guard(() => this.openArchive(href));
     }
+  };
+  /** Links drawn by SiYuan's own chrome — the Bazaar's cards and READMEs — never
+   * reach `open-link`, so they are taken at the click itself when the option is
+   * on. Off by default: without it the host keeps sending them to the system
+   * browser. */
+  private uiLink = (event: MouseEvent) => {
+    if (!this.config.bazaar) return;
+    takeoverUILink(event, (url) => void this.open(url));
   };
   async open(
     url: string,
@@ -925,7 +935,7 @@ export default class BrowserPlugin extends Plugin {
           );
       },
     });
-    const checkbox = (key: "takeover" | "adblock") => {
+    const checkbox = (key: "takeover" | "bazaar" | "adblock") => {
       const i = element("input", "b3-switch");
       i.type = "checkbox";
       i.checked = this.config[key];
@@ -939,11 +949,19 @@ export default class BrowserPlugin extends Plugin {
         this.showUserScripts(),
       ),
     });
-    for (const key of ["takeover", "adblock"] as const)
-      this.setting.addItem({
-        title: this.t(key),
-        actionElement: checkbox(key),
-      });
+    this.setting.addItem({
+      title: this.t("takeover"),
+      actionElement: checkbox("takeover"),
+    });
+    this.setting.addItem({
+      title: this.t("bazaar"),
+      description: this.t("bazaarHint"),
+      actionElement: checkbox("bazaar"),
+    });
+    this.setting.addItem({
+      title: this.t("adblock"),
+      actionElement: checkbox("adblock"),
+    });
     const select = element("select", "b3-select");
     for (const name of [...Object.keys(ENGINES), "Custom"])
       select.add(new Option(name, name));
@@ -1244,6 +1262,7 @@ export default class BrowserPlugin extends Plugin {
   async onunload() {
     this.closing = true;
     this.stopTabDrag?.();
+    document.removeEventListener("click", this.uiLink, true);
     this.bookmarkTabs.clear();
     this.documentIcons.dispose();
     this.outline?.destroy();

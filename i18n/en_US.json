@@ -45,6 +45,8 @@
   "bookmarked": "Bookmarked",
   "clear": "Clear data",
   "takeover": "Open note HTTP(S) links in browser",
+  "bazaar": "Open marketplace links in browser",
+  "bazaarHint": "Links clicked in SiYuan's Bazaar — package cards, READMEs, repositories — open as browser tabs instead of going to the system browser. Links inside notes stay under the option above.",
   "adblock": "Block ads and trackers",
   "engine": "Search engine",
   "home": "Homepage",

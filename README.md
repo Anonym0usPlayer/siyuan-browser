@@ -14,7 +14,7 @@ Browse, read and clip web pages inside SiYuan. Turn articles into editable notes
 
 ## Features
 
-- **Native tabs**: open websites in SiYuan tabs, split panes or separate windows. HTTP(S) note links open in the plugin by default; this can be disabled in settings.
+- **Native tabs**: open websites in SiYuan tabs, split panes or separate windows. HTTP(S) note links open in the plugin by default; this can be disabled in settings. Links clicked in the marketplace (package cards, READMEs, repositories) can be taken over the same way by a separate, off-by-default option.
 - **Address and search**: enter a URL, domain or search term; search bookmarks, history and provider suggestions. DuckDuckGo is the default search engine.
 - **Home and library**: bookmarks, most visited pages, recently closed tabs and history on the built-in home page, with configurable section visibility and order. Each section expands in place and a sidebar dock lists the same entries. A separate library tab page is no longer offered.
 - **Reader**: extract the article and adjust theme, font, page zoom, fit-to-width and find-in-page.
