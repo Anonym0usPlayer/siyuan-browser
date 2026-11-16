@@ -1176,19 +1176,57 @@ export default class BrowserPlugin extends Plugin {
       this.updateJobs();
     }
   }
-  jobBodies = new Set<HTMLElement>();
+  jobPanels = new Map<
+    HTMLElement,
+    { list: HTMLElement; clear: HTMLButtonElement }
+  >();
   showJobs() {
     const d = dialog(this.t("jobs"));
-    this.jobBodies.add(d.body);
+    // One bulk action per dialog, next to its title: the list below is rewritten
+    // on every progress tick, so the control has to live outside it or it would
+    // be re-created (and lose focus) dozens of times per save.
+    const clear = button(this.t("clearAllJobs"), () => this.clearAllJobs());
+    clear.classList.add("sb-job-clear-all");
+    const header = d.dialog.element.querySelector<HTMLElement>(
+      ".b3-dialog__header",
+    );
+    if (header) {
+      header.classList.add("sb-job-header");
+      header.append(clear);
+    }
+    const list = element("div", "sb-job-list");
+    d.body.append(list);
+    if (!header) d.body.prepend(clear);
+    this.jobPanels.set(d.body, { list, clear });
+    this.updateJobs();
+  }
+  /** Drop one entry from the list. A task that is still running is cancelled
+   * first, so clearing it does not leave work writing into a document nobody is
+   * watching any more. */
+  clearJob(job: SaveJob) {
+    job.cancelled = true;
+    this.jobs = this.jobs.filter((item) => item !== job);
+    void this.saveData("jobs.json", this.jobs);
+    this.updateJobs();
+  }
+  clearAllJobs() {
+    for (const job of this.jobs) job.cancelled = true;
+    this.jobs = [];
+    void this.saveData("jobs.json", this.jobs);
     this.updateJobs();
   }
   updateJobs() {
-    for (const body of this.jobBodies) {
+    for (const [body, panel] of this.jobPanels) {
       if (!body.isConnected) {
-        this.jobBodies.delete(body);
+        this.jobPanels.delete(body);
         continue;
       }
-      body.replaceChildren();
+      panel.list.replaceChildren();
+      panel.clear.disabled = this.jobs.length === 0;
+      if (!this.jobs.length) {
+        panel.list.append(element("p", "sb-job-empty", this.t("noJobs")));
+        continue;
+      }
       for (const j of this.jobs) {
         const row = element("div", "sb-job");
         const failed = Object.entries(j.resources).filter(([, r]) => r.error);
@@ -1228,7 +1266,10 @@ export default class BrowserPlugin extends Plugin {
               this.guard(() => this.openArchive(j.snapshot!)),
             ),
           );
-        body.append(row);
+        const drop = button(this.t("clearJob"), () => this.clearJob(j));
+        drop.classList.add("sb-job-clear");
+        row.append(drop);
+        panel.list.append(row);
       }
     }
   }

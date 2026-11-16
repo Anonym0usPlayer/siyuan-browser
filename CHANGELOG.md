@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Clear save tasks from the task dialog. Each row gets its own quiet "clear" button next to the actions that do something, and the dialog header gets "clear all"; both drop the entry from `jobs.json` — and cancel it first if it is still running, so nothing keeps writing into a document nobody is watching — and both reach every task dialog that happens to be open. The list is rewritten on every progress tick, so the bulk action lives in the header and the empty list says so instead of going blank.
+
 ## 0.1.9 — 2026-11-16
 
 - Follow SiYuan's light/dark instead of the desktop's. A page asking for `prefers-color-scheme` gets the platform answer — Chromium resolves that media feature per webContents from the OS appearance — so with SiYuan pinned to a dark theme on a light desktop, every site still opened light, and a light theme on a dark desktop got dark pages. The plugin now reads the mode the host actually resolved (it stamps `<html data-theme-mode>`, including when the theme follows the system), watches that attribute, and passes it to the main process, which answers the guest with a DevTools media emulation. A theme switch reaches tabs that are already open, a new tab starts with the right answer before its first paint, and the webview backdrop is the theme background instead of white.

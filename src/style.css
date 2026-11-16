@@ -252,6 +252,35 @@
 .sb-job button {
   margin: 4px;
 }
+/* Clearing is housekeeping, not an action on the document: it stays quiet next
+ * to the buttons that do something, and only paints itself on hover. */
+.sb-job .sb-job-clear {
+  color: var(--b3-theme-on-surface);
+}
+.sb-job .sb-job-clear:hover {
+  color: var(--b3-theme-error, #d23f31);
+}
+.sb-job-empty {
+  margin: 0;
+  padding: 14px 0;
+  font-size: 13px;
+  color: var(--b3-theme-on-surface);
+}
+/* The bulk action sits in the dialog's own header, which holds nothing but the
+ * title; laying it out as a row keeps the title on the left and the button on
+ * the right without absolute offsets that a theme could move. */
+.sb-job-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sb-job-header .sb-job-clear-all {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 20px;
+  padding: 0 8px;
+}
 .sb-reader mark {
   background: var(--b3-theme-primary-light);
   color: inherit;
