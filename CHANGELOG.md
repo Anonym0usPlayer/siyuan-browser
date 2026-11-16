@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Follow SiYuan's light/dark instead of the desktop's. A page asking for `prefers-color-scheme` gets the platform answer — Chromium resolves that media feature per webContents from the OS appearance — so with SiYuan pinned to a dark theme on a light desktop, every site still opened light, and a light theme on a dark desktop got dark pages. The plugin now reads the mode the host actually resolved (it stamps `<html data-theme-mode>`, including when the theme follows the system), watches that attribute, and passes it to the main process, which answers the guest with a DevTools media emulation. A theme switch reaches tabs that are already open, a new tab starts with the right answer before its first paint, and the webview backdrop is the theme background instead of white.
 - Take over the Bazaar's links too, behind its own switch. Links in SiYuan's marketplace — package cards, the README pane, repository buttons — are plain anchors that the Bazaar's own click handler deliberately skips, so their clicks never reach the editor's `open-link` event and the host hands them to the system browser. A capture-phase listener now takes the click before that default runs: a left click without modifiers on an `http(s)` anchor outside the editor, the browser surface and editable fields opens a browser tab instead. Notes keep their own switch, so the two can be set independently; the new one is off by default and the host keeps winning when it is.
 
 ## 0.1.8 — 2026-11-12

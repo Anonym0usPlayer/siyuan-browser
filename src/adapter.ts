@@ -56,6 +56,17 @@ export class DesktopBrowserAdapter {
     if (/^https?:\/\//i.test(url))
       window.require("electron").shell.openExternal(url);
   }
+  /** Guests cannot be told their colour scheme from the renderer: Chromium
+   * answers `prefers-color-scheme` per webContents from the OS appearance, so
+   * the main process has to override it. */
+  setScheme(mode: "dark" | "light") {
+    if (!this.partition) return;
+    try {
+      this.bridge?.scheme?.(this.partition, mode);
+    } catch {
+      /* An older build without the hook: guests keep the OS preference. */
+    }
+  }
   hostZoom(): number {
     return window.require("electron").webFrame.getZoomFactor();
   }

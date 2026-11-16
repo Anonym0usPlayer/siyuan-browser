@@ -57,6 +57,7 @@ import { runSave, SaveJob } from "./archive";
 import "./style.css";
 import { watchTabDrag } from "./tab-surface";
 import { takeoverUILink } from "./link-takeover";
+import { watchAppearance } from "./scheme";
 export default class BrowserPlugin extends Plugin {
   config: Config = readConfig(undefined);
   adapter!: DesktopBrowserAdapter;
@@ -73,6 +74,8 @@ export default class BrowserPlugin extends Plugin {
   saving = false;
   closing = false;
   stopTabDrag?: () => void;
+  scheme?: "dark" | "light";
+  stopScheme?: () => void;
   timer?: ReturnType<typeof setTimeout>;
   ready: Promise<void> = Promise.resolve();
   pending: any[] = [];
@@ -178,6 +181,7 @@ export default class BrowserPlugin extends Plugin {
       window.siyuan.config.system.workspaceDir,
       (e) => this.event(e),
     );
+    this.watchScheme();
     for (const custom of this.pending) this.mount(custom);
     this.pending = [];
     if (this.adapter.partition)
@@ -922,6 +926,18 @@ export default class BrowserPlugin extends Plugin {
     this.makeSettings();
     super.openSetting();
   }
+  /** SiYuan already resolves light and dark — including "follow the system" —
+   * and stamps the result on `<html data-theme-mode>`. Guests are handed that
+   * value, so a page asking for `prefers-color-scheme` matches the workspace it
+   * is embedded in instead of the OS, which is a different question and wrong
+   * whenever SiYuan is pinned to a theme. */
+  watchScheme() {
+    this.stopScheme?.();
+    this.stopScheme = watchAppearance(document, (mode) => {
+      this.scheme = mode;
+      this.adapter?.setScheme(mode);
+    });
+  }
   showUserScripts() {
     userScriptManager(this);
   }
@@ -1262,6 +1278,7 @@ export default class BrowserPlugin extends Plugin {
   async onunload() {
     this.closing = true;
     this.stopTabDrag?.();
+    this.stopScheme?.();
     document.removeEventListener("click", this.uiLink, true);
     this.bookmarkTabs.clear();
     this.documentIcons.dispose();

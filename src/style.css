@@ -105,7 +105,9 @@
   min-height: 0;
   min-width: 0;
   align-self: stretch;
-  background: white;
+  /* Only visible before the guest paints, and behind pages that leave the body
+   * transparent — both should read as part of the workspace, not as A4 paper. */
+  background: var(--b3-theme-background);
 }
 /* SiYuan shields iframes while resizing panes; Electron webviews need the same guard. */
 .fn__pointer-none .sb-webview {

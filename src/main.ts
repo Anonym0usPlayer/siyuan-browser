@@ -24,6 +24,34 @@ export async function filterSettings(fallback: any) {
 }
 const hash = (s: string) =>
   createHash("sha256").update(s).digest("hex").slice(0, 24);
+/** Answer `prefers-color-scheme` with SiYuan's theme rather than the OS one.
+ *
+ * Chromium resolves that media feature per webContents from the platform
+ * appearance and Electron exposes no per-view switch for it, so the guest gets
+ * a DevTools emulation override — the same mechanism a browser's device toolbar
+ * uses. It applies to the next document too, and a re-attach after a renderer
+ * swap is cheap, so apply on create and on dom-ready. */
+const applyScheme = (mode: string, w: any) => {
+  try {
+    if (!w.debugger.isAttached()) w.debugger.attach("1.3");
+    void w.debugger
+      .sendCommand("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-color-scheme", value: mode }],
+      })
+      .catch(() => {});
+  } catch {
+    /* DevTools owns this view; it keeps following the system. */
+  }
+};
+export function scheme(partition: string, mode: string) {
+  const s = states.get(partition);
+  if (!s) return;
+  s.scheme = mode === "dark" ? "dark" : "light";
+  for (const id of s.guests) {
+    const w = webContents.fromId(id);
+    if (w && !w.isDestroyed()) applyScheme(s.scheme, w);
+  }
+}
 /** The project site easylist.to frequently stalls on slow routes, while the
  * official download host serves the same lists without redirecting. Existing
  * configs keep their URL; only the transfer falls back. */
@@ -123,6 +151,7 @@ export function acquire(
     s.created = (_e: any, w: any) => {
       if (w.session !== ses) return;
       s.guests.add(w.id);
+      if (s.scheme) applyScheme(s.scheme, w);
       s.userScripts.register(w);
       w.setWindowOpenHandler((d: any) => {
         if (httpURL(d.url))
@@ -168,6 +197,7 @@ export function acquire(
         }
       });
       w.on("dom-ready", () => {
+        if (s.scheme) applyScheme(s.scheme, w);
         if (
           !(s.filterOverrides.get(w.id) ?? s.enabled) ||
           !s.engine ||
